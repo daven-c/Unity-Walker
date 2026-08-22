@@ -223,11 +223,16 @@ Crawling now pays ≈0. The standalone `0.1 × postureReward` term remains so a 
 
 Two flailing fixes went in at the same time: walk speed capped at 5 m/s (it had been sampling up to 10 m/s, roughly a world-record sprint, and velocity matching is the whole objective — so the optimal answer to "sprint at 22 mph" from a ragdoll that can't walk is to hurl limbs), and an **action-rate penalty** on `mean(|aₜ − aₜ₋₁|)`, since nothing previously cost anything for slamming joints to full force or reversing them every decision.
 
-### 6. `Walker_Smooth` — abandoned at ~850k steps
+### 6. `Walker_Smooth` — 1,702,000 steps, abandoned
 
-Mean reward stalled at **≈50** over 5,000-step episodes (~0.01/step), with every agent crawling and none standing.
+| Checkpoint | Mean reward |
+|---|---|
+| ~850k | ≈50 |
+| 1,702,000 | ≈221 |
 
-The gate was working correctly — crawling was being denied reward, down from the worm's 0.29/step. But that exposed the *next* problem: **standing up from prone is too hard to discover by random exploration.** With the locomotion term gated to ~0 and only the small posture term live, there was no reachable gradient to climb. Denying reward for the wrong behavior doesn't teach the right one if the right one is never stumbled into.
+At the ~850k mark, reward sat at ≈50 over 5,000-step episodes (~0.01/step) with every agent crawling and none standing. It was still climbing when abandoned — reward more than quadrupled by 1.7M — so this wasn't a hard plateau, just very slow progress toward a behavior that hadn't been discovered yet.
+
+The gate was doing its job: crawling was being denied reward, down from the worm's 0.29/step. But that exposed the *next* problem: **standing up from prone is too hard to discover by random exploration.** With the locomotion term gated to ~0 and only the small posture term live, there was almost no reachable gradient to climb. Denying reward for the wrong behavior doesn't teach the right one if the right one is never stumbled into.
 
 ### 7. Two-stage curriculum (current)
 
