@@ -59,19 +59,33 @@ Use the `Walker` scene (20 parallel agents) for actual training; `Solo Walker` (
    source venv/bin/activate  # or venv\Scripts\activate on Windows
    pip install -r Assets/Python/requirements.txt
    ```
-3. From that environment, start training:
+3. `requirements.txt` installs the **CPU-only** build of torch by default. If you have an NVIDIA GPU, swap in the CUDA build instead:
    ```bash
-   mlagents-learn Assets/Python/config.yaml --run-id=<run-name>
+   pip uninstall torch -y
+   pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
    ```
-   Add `--resume` to continue an existing run-id instead of starting over.
-4. Press Play in the Unity Editor when prompted to connect the environment.
-5. Monitor progress with TensorBoard:
+   Verify it's actually using the GPU: `python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"` should print `True` and your GPU's name. Don't expect it pegged, though — the network here is small enough that Unity's physics simulation is the real bottleneck, not the gradient step.
+4. Start training:
+   ```bash
+   mlagents-learn Assets/Python/config.yaml --run-id=<run-name> --torch-device=cuda
+   ```
+   Drop `--torch-device=cuda` if you're on CPU-only torch. Add `--resume` to continue an existing run-id instead of starting over, e.g.:
+   ```bash
+   mlagents-learn Assets/Python/config.yaml --run-id=Walker_First_Steps --resume --torch-device=cuda
+   ```
+5. Press Play in the Unity Editor when prompted to connect the environment. Use the `Walker` scene, not `Solo Walker`.
+6. Monitor progress with TensorBoard (in a separate terminal, since `mlagents-learn` blocks the one it's running in):
    ```bash
    tensorboard --logdir Assets/Python/results
    ```
+   Then open the printed URL (typically `http://localhost:6006`).
 
 A prior run (`Walker_First_Steps`) and its trained `.onnx` model are checked into `Assets/Python/results/` and `Assets/Examples/Walker/TFModels/` for reference/inference.
 
 ### Running a trained model
 
 Drag the trained `.onnx` model onto the ragdoll's Behavior Parameters component in the `Walker` or `Solo Walker` scene and set the behavior type to **Inference** to watch it walk without training.
+
+## Todo
+
+- **Headless parallel training** — build the project to a standalone player (File → Build) and run `mlagents-learn` against it with `--no-graphics --num-envs=N`. Editor Play mode only ever runs one instance of the scene; a headless build lets ml-agents spawn several in parallel, which should beat anything the `engine_settings` speedup in `config.yaml` can do on its own.

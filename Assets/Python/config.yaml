@@ -22,3 +22,9 @@ behaviors:
         max_steps: 15000000 # 15 Million steps (Walking is hard!)
         time_horizon: 1000
         summary_freq: 50000
+engine_settings:
+    time_scale: 20 # simulated seconds per real second; ml-agents applies ~20 by default anyway - raise with caution, high values can destabilize the ragdoll's physics
+    quality_level: 0 # lowest render quality preset - no effect on physics/training, just cuts render cost
+    width: 84
+    height: 84 # tiny Game view resolution - you're not watching this closely during bulk training
+    no_graphics: false # only takes effect against a standalone build, not Editor Play mode
