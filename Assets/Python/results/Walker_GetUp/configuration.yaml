@@ -70,7 +70,7 @@ checkpoint_settings:
   force: false
   train_model: false
   inference: false
-  results_dir: results
+  results_dir: Assets\Python\results
 torch_settings:
   device: cuda
 debug: false
