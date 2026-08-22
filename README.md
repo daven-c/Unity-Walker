@@ -215,6 +215,30 @@ AddReward(matchSpeedReward * lookAtTargetReward * postureReward + 0.1f * posture
 
 Crawling now pays ≈0. The standalone `0.1 × postureReward` term remains so a fallen agent still has a gradient to stand — the gated locomotion term is ~0 until it does.
 
+Two flailing fixes went in at the same time: walk speed capped at 5 m/s (it had been sampling up to 10 m/s, roughly a world-record sprint, and velocity matching is the whole objective — so the optimal answer to "sprint at 22 mph" from a ragdoll that can't walk is to hurl limbs), and an **action-rate penalty** on `mean(|aₜ − aₜ₋₁|)`, since nothing previously cost anything for slamming joints to full force or reversing them every decision.
+
+### 6. `Walker_Smooth` — abandoned at ~850k steps
+
+Mean reward stalled at **≈50** over 5,000-step episodes (~0.01/step), with every agent crawling and none standing.
+
+The gate was working correctly — crawling was being denied reward, down from the worm's 0.29/step. But that exposed the *next* problem: **standing up from prone is too hard to discover by random exploration.** With the locomotion term gated to ~0 and only the small posture term live, there was no reachable gradient to climb. Denying reward for the wrong behavior doesn't teach the right one if the right one is never stumbled into.
+
+### 7. Two-stage curriculum (current)
+
+Rather than expect one policy to learn balance, gait, *and* recovery simultaneously from a mostly-flat reward, split it:
+
+**Stage 1 — learn to walk, falling is fatal.**
+- `agentDoneOnGroundContact: 1` restored on the 12 torso/head/hand parts (feet and the other 4 ground-legal parts stay `0`).
+- `fallenStartProbability: 0` — **required**, since a fallen start plus ground-contact termination would end the episode at step 0.
+
+Termination does the heavy lifting: crawling is not a low-scoring policy here, it's an *impossible* one, so the only way to accumulate reward is to stay up and move. This is the original Unity Walker task, which trains reliably.
+
+**Stage 2 — learn to get up, falling is survivable.**
+- Flip `agentDoneOnGroundContact` back to `0` on those 12 parts, set `fallenStartProbability` to ~0.3.
+- `--initialize-from` stage 1, so the policy starts already knowing balance and gait and only needs to learn recovery.
+
+The reward function is **identical across both stages** — no code change to switch, just the two prefab fields. That's deliberate: while upright, `postureReward ≈ 1` and the gated reward collapses to the original `matchSpeed × lookAt` plus a constant, so the gate is a no-op in stage 1 and the value function stays meaningful across the transfer. Stage 2 still needs the gate, or the crawl comes straight back.
+
 ## Notes on reward design and retraining
 
 Generalizable lessons from the above, mostly learned the expensive way.
@@ -226,6 +250,8 @@ Generalizable lessons from the above, mostly learned the expensive way.
 **Gate, don't bonus.** If a property is a *prerequisite* for the behavior you want, multiply by it. If it's genuinely optional, add it. An additive bonus only shifts preference at the margin — it loses outright to any easier policy that skips the property and banks the main reward anyway.
 
 **Measure what you actually mean.** `dot(hips.up, worldUp)` is a plausible-looking "uprightness" term that quietly awards full marks for lying on your back. Cheap sanity check: enumerate the degenerate poses and ask what each one scores.
+
+**Removing a bad optimum doesn't create a good one.** Gating crawling to ~0 reward correctly stopped it from paying — and the agent kept crawling anyway, because standing up was never discovered in the first place. A reward can only select among behaviors exploration actually reaches. When the target behavior is a long, precise action sequence with no partial credit along the way, that's a *credit-assignment* problem, and the fix is curriculum or demonstrations, not more reward shaping.
 
 **Deciding whether to reuse a checkpoint.** Two separate questions:
 
@@ -249,6 +275,6 @@ Rule of thumb: **`--initialize-from` when adding a skill, start fresh when remov
 
 ## Todo
 
-- **Retrain against the posture gate.** Start fresh rather than `--resume` — the 15M-step policy is confidently converged on worming, which is the case where a prior actively hurts.
-- **Two-stage curriculum.** Stage 1: train a walker with `agentDoneOnGroundContact` on and `fallenStartProbability = 0` (the known-good original task, trains fast). Stage 2: flip both, `--initialize-from` stage 1. Stage 1 fixes the cold start; the gate fixes the local optimum — they're complementary, and stage 2 still needs the gate or the crawl returns. Conveniently the gated reward is backward-compatible with stage 1: while upright, `postureReward ≈ 1` and it collapses to the original reward plus a constant. `m_ResetParams` (an assigned-but-unused `EnvironmentParameters` hook in `WalkerAgent`) is what ML-Agents' native curriculum system drives, if this should run as one automated job instead of two manual runs.
+- **Run stage 2 once stage 1 has a competent walker** — see the two-stage curriculum above for the two prefab fields to flip and the `--initialize-from` invocation.
+- **Automate the curriculum.** `m_ResetParams` in `WalkerAgent` is an assigned-but-unused `EnvironmentParameters` hook, which is exactly what ML-Agents' native curriculum system drives. Wiring `fallenStartProbability` (and a termination toggle) through it would make both stages one `mlagents-learn` job with lessons in `config.yaml`, instead of two manual runs with an Inspector edit between them.
 - **Headless parallel training** — build the project to a standalone player (File → Build) and run `mlagents-learn` against it with `--no-graphics --num-envs=N`. Editor Play mode only ever runs one instance of the scene; a headless build lets ml-agents spawn several in parallel. Note the CPU is already saturated at `time_scale: 20`, so the win here is removing Editor overhead more than true parallelism until there's CPU headroom.
