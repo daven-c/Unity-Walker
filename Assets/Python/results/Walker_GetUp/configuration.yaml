@@ -56,14 +56,14 @@ env_settings:
 engine_settings:
   width: 84
   height: 84
-  quality_level: 5
-  time_scale: 20
+  quality_level: 0
+  time_scale: 20.0
   target_frame_rate: -1
   capture_frame_rate: 60
   no_graphics: false
 environment_parameters: null
 checkpoint_settings:
-  run_id: Walker_First_Steps
+  run_id: Walker_getup
   initialize_from: null
   load_model: false
   resume: true
@@ -72,5 +72,5 @@ checkpoint_settings:
   inference: false
   results_dir: results
 torch_settings:
-  device: null
+  device: cuda
 debug: false

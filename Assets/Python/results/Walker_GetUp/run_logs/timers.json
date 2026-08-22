@@ -1,0 +1,47 @@
+{
+    "name": "root",
+    "metadata": {
+        "timer_format_version": "0.1.0",
+        "start_time_seconds": "1787386747",
+        "python_version": "3.9.13 (tags/v3.9.13:6de2ca5, May 17 2022, 16:36:42) [MSC v.1929 64 bit (AMD64)]",
+        "command_line_arguments": "\\\\?\\E:\\Coding\\Git Repositories\\Unity-Walker\\venv\\Scripts\\mlagents-learn Assets/Python/config.yaml --run-id=Walker_getup --resume --torch-device=cuda",
+        "mlagents_version": "0.30.0",
+        "mlagents_envs_version": "0.30.0",
+        "communication_protocol_version": "1.5.0",
+        "pytorch_version": "1.11.0+cu113",
+        "numpy_version": "1.21.2",
+        "end_time_seconds": "1787386755"
+    },
+    "total": 7.7970463,
+    "count": 1,
+    "self": 0.0050080000000001235,
+    "children": {
+        "run_training.setup": {
+            "total": 0.08285870000000006,
+            "count": 1,
+            "self": 0.08285870000000006
+        },
+        "TrainerController.start_learning": {
+            "total": 7.7091796,
+            "count": 1,
+            "self": 0.00031919999999896476,
+            "children": {
+                "TrainerController._reset_env": {
+                    "total": 7.7088508000000004,
+                    "count": 1,
+                    "self": 7.7088508000000004
+                },
+                "trainer_threads": {
+                    "total": 1.1000000004202093e-06,
+                    "count": 1,
+                    "self": 1.1000000004202093e-06
+                },
+                "TrainerController._save_models": {
+                    "total": 8.499999999855845e-06,
+                    "count": 1,
+                    "self": 8.499999999855845e-06
+                }
+            }
+        }
+    }
+}
