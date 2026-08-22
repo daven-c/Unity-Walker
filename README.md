@@ -112,8 +112,11 @@ Two design notes worth carrying forward:
 ### Transitions and episode structure
 
 - **Dynamics:** Unity `PhysX` rigidbody simulation. `DecisionPeriod: 5` with `TakeActionsBetweenDecisions: 0` — the policy acts every 5th physics step and the command is held in between.
-- **Termination:** `MaxStep: 5000` decisions only (≈25,000 physics steps ≈ 500 simulated seconds). There is **no early termination** — ground contact used to end the episode, but `agentDoneOnGroundContact` is disabled on all 12 torso/head/hand parts so falling is a recoverable state rather than a reset. ML-Agents bootstraps the value estimate at a step-limit cutoff rather than treating it as terminal, so timing out isn't implicitly punished.
-- **Initial state distribution** (`OnEpisodeBegin`): body parts reset to the authored pose, hips given a uniformly random yaw, and with probability `fallenStartProbability` (0.3) the ragdoll is tipped over (pitch 70–110°, random roll) so recovery gets dedicated practice. Target walking speed is resampled uniformly in 0.1–5 m/s when `randomizeWalkSpeedEachEpisode` is on.
+- **Episode length:** `MaxStep: 5000` counts *physics* steps, not decisions — `Agent.StepCount` increments once per academy step, which is once per `FixedUpdate`. At `fixedDeltaTime` 0.02 that's **100 simulated seconds**, and at `DecisionPeriod: 5`, **~1000 decisions** per episode. Useful for reading reward magnitudes: reward is added every physics step and peaks around 1.1, so the practical ceiling is ~5,500 per episode.
+- **Termination — stage dependent.** ML-Agents bootstraps the value estimate at a step-limit cutoff rather than treating it as terminal, so timing out is never implicitly punished. Ground contact is the switch between the two curriculum stages:
+  - *Stage 1 (current):* `agentDoneOnGroundContact: 1` on the 12 torso/head/hand parts — falling ends the episode. The other 4 ground-legal parts (feet included) stay `0`.
+  - *Stage 2:* all 12 set to `0`, so falling is a recoverable state.
+- **Initial state distribution** (`OnEpisodeBegin`): body parts reset to the authored pose and hips given a uniformly random yaw. With probability `fallenStartProbability` the ragdoll is tipped over (pitch 70–110°, random roll). That value is **0 in stage 1** — a fallen start combined with fall-is-fatal would end the episode at step 0 — and ~0.3 in stage 2. Target walking speed is resampled uniformly in 0.1–5 m/s when `randomizeWalkSpeedEachEpisode` is on.
 - **Discounting:** `gamma: 0.995` and `time_horizon: 1000` in `config.yaml`, with GAE `lambd: 0.95`. The high gamma matters for a task where the payoff for standing up arrives many steps after the effort to do it.
 
 ## Training
@@ -124,7 +127,13 @@ Training is driven by [`mlagents-learn`](Assets/Python/config.yaml) using PPO:
 - 15M max steps, batch size 2048, buffer size 20480
 - Checkpoints and TensorBoard event logs are written under `Assets/Python/results/`
 
-Use the `Walker` scene (20 parallel agents) for actual training; `Solo Walker` (1 agent) is for closer inspection of a single agent's behavior.
+Three scenes, all sharing the same `WalkerRagdoll` prefab and therefore the same policy:
+
+| Scene | Agents | Use |
+|---|---|---|
+| `Walker40` | 40 | Default for training — more agents per environment amortize the Unity↔Python round trip |
+| `Walker20` | 20 | Lighter on the machine; the original layout |
+| `Solo Walker` | 1 | Watching a single agent's behavior closely |
 
 ### Setup
 
@@ -154,7 +163,7 @@ Use the `Walker` scene (20 parallel agents) for actual training; `Solo Walker` (
    mlagents-learn Assets/Python/config.yaml --results-dir=Assets/Python/results --run-id=<run-name> --torch-device=cuda
    ```
    Drop `--torch-device=cuda` if you're on CPU-only torch.
-5. Press Play in the Unity Editor when prompted to connect the environment. Use the `Walker` scene, not `Solo Walker`.
+5. Press Play in the Unity Editor when prompted to connect the environment. Use `Walker40` (or `Walker20`), not `Solo Walker`.
 6. Monitor progress with TensorBoard (in a separate terminal, since `mlagents-learn` blocks the one it's running in):
    ```bash
    tensorboard --logdir Assets/Python/results
@@ -165,7 +174,7 @@ A completed run (`Walker_GetUp`, 15M steps, fall-recovery reward) and its traine
 
 ### Running a trained model
 
-Drag the trained `.onnx` model onto the ragdoll's Behavior Parameters component in the `Walker` or `Solo Walker` scene and set the behavior type to **Inference** to watch it walk without training.
+Drag the trained `.onnx` model onto the ragdoll's Behavior Parameters component in any Walker scene and set the behavior type to **Inference** to watch it walk without training.
 
 ## Training log
 

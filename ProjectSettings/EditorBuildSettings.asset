@@ -6,7 +6,10 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Examples/Walker/Scenes/Walker.unity
+    path: Assets/Examples/Walker/Scenes/Walker40.unity
+    guid: 7de8c5ef2119b8e438b2b04c5a2fefd4
+  - enabled: 1
+    path: Assets/Examples/Walker/Scenes/Walker20.unity
     guid: 2b839ee93e7a4467f9f8b4803c4a239b
   - enabled: 1
     path: Assets/Examples/Walker/Scenes/Solo Walker.unity

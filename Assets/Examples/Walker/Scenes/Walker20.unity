@@ -791,26 +791,6 @@ PrefabInstance:
       propertyPath: TakeActionsBetweenDecisions
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 654595228, guid: 84359146bf7af47e58c229d877e801d7, type: 3}
-      propertyPath: MaxStep
-      value: 30000
-      objectReference: {fileID: 0}
-    - target: {fileID: 654595228, guid: 84359146bf7af47e58c229d877e801d7, type: 3}
-      propertyPath: randomizeWalkSpeedEachEpisode
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 654595229, guid: 84359146bf7af47e58c229d877e801d7, type: 3}
-      propertyPath: m_BehaviorType
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 654595229, guid: 84359146bf7af47e58c229d877e801d7, type: 3}
-      propertyPath: m_InferenceDevice
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 654595229, guid: 84359146bf7af47e58c229d877e801d7, type: 3}
-      propertyPath: m_BrainParameters.VectorObservationSize
-      value: 243
-      objectReference: {fileID: 0}
     - target: {fileID: 6713178126238440196, guid: 84359146bf7af47e58c229d877e801d7, type: 3}
       propertyPath: m_Name
       value: PlatformDynamicTarget (10)
@@ -1151,8 +1131,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 83d7b886385fb48b999bc3fbc41bc181, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   mainSpeed: 10
   shiftAdd: 25
   maxShift: 100
@@ -1394,6 +1374,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1537641056927260, guid: 3ce107b4a79bc4eef83afde434932a68, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 224194346362733190, guid: 3ce107b4a79bc4eef83afde434932a68, type: 3}
       propertyPath: m_Pivot.x
       value: 0
@@ -1839,11 +1823,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3d6f3eab3776b4fb79724ac4216dfd7b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!4 &1997371326124021637 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 1997371326124021637, guid: 84359146bf7af47e58c229d877e801d7, type: 3}
-  m_PrefabInstance: {fileID: 2709362470382547191}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &2709362470382547191
 PrefabInstance:
   m_ObjectHideFlags: 0
