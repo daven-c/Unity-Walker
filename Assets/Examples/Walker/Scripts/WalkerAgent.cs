@@ -66,6 +66,10 @@ public class WalkerAgent : Agent
     JointDriveController m_JdController;
     EnvironmentParameters m_ResetParams;
 
+    //Head-to-foot height of the prefab's authored (standing) pose, captured in Initialize and used
+    //to normalize the posture reward. Self-calibrating, so resizing the ragdoll doesn't need a retune.
+    float m_StandingHeight = 1f;
+
     public override void Initialize()
     {
         m_OrientationCube = GetComponentInChildren<OrientationCubeController>();
@@ -89,6 +93,13 @@ public class WalkerAgent : Agent
         m_JdController.SetupBodyPart(armR);
         m_JdController.SetupBodyPart(forearmR);
         m_JdController.SetupBodyPart(handR);
+
+        //Measured before any physics runs, so the ragdoll is still in its authored standing pose.
+        var standingHeight = head.position.y - Mathf.Min(footL.position.y, footR.position.y);
+        if (standingHeight > 0.01f)
+        {
+            m_StandingHeight = standingHeight;
+        }
 
         m_ResetParams = Academy.Instance.EnvironmentParameters;
     }
@@ -280,13 +291,18 @@ public class WalkerAgent : Agent
             );
         }
 
-        // c. Staying upright / climbing back upright after a fall.
-        //Ground contact no longer ends the episode (see WalkerRagdoll prefab), so this is the
-        //only signal telling a fallen agent that standing back up is better than lying there -
-        //matchSpeedReward and lookAtTargetReward both go to ~0 while down, giving no gradient on their own.
-        var uprightReward = Mathf.Clamp01(Vector3.Dot(hips.up, Vector3.up));
+        // c. Posture: torso vertical AND actually standing tall on its legs.
+        //This GATES the locomotion reward instead of adding to it. Crawling satisfies both
+        //matchSpeedReward (average body velocity) and lookAtTargetReward (head yaw) perfectly well,
+        //so as a small additive bonus this lost to the worming gait it was meant to discourage.
+        //The height term matters too: dot(hips.up, up) alone scores ~1 while lying on your back.
+        var torsoUpright = Mathf.Clamp01(Vector3.Dot(hips.up, Vector3.up));
+        var height = head.position.y - Mathf.Min(footL.position.y, footR.position.y);
+        var postureReward = torsoUpright * Mathf.Clamp01(height / m_StandingHeight);
 
-        AddReward(matchSpeedReward * lookAtTargetReward + 0.1f * uprightReward);
+        //The standalone posture term is what gives a fallen agent a gradient to stand back up,
+        //since the gated locomotion term is ~0 until it does.
+        AddReward(matchSpeedReward * lookAtTargetReward * postureReward + 0.1f * postureReward);
     }
 
     //Returns the average velocity of all of the body parts
