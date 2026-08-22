@@ -290,7 +290,17 @@ Rule of thumb: **`--initialize-from` when adding a skill, start fresh when remov
 - **Automate the curriculum.** `m_ResetParams` in `WalkerAgent` is an assigned-but-unused `EnvironmentParameters` hook, which is exactly what ML-Agents' native curriculum system drives. Wiring `fallenStartProbability` (and a termination toggle) through it would make both stages one `mlagents-learn` job with lessons in `config.yaml`, instead of two manual runs with an Inspector edit between them.
 - **Headless parallel training** — build the project to a standalone player (File → Build) and run `mlagents-learn` against it with `--no-graphics --num-envs=N`. This is the main remaining throughput win.
 
-  Observed symptom on an i9-9900KF (8C/16T): the Editor lags while ~3 cores sit at 70–80%, the rest at 20–30%, and the GPU is idle — **nothing is saturated**. That rules out a raw compute limit and points at the synchronous Unity↔Python link: every decision step Unity serializes observations, sends them over gRPC, and blocks until Python returns actions, while Python blocks waiting on the next batch. Both sides idle during each handoff.
+  Observed symptom on an i9-9900KF (8C/16T): the Editor lags while every logical processor runs moderately busy and spiky, none saturated, and the GPU idle. That rules out a raw compute limit.
+
+  `Assets/ML-Agents/Timers/Walker_timers.json` (written after each Play session) pins it down — from a 1,625 s session:
+
+  | Timer | Total | Share of wall clock |
+  |---|---|---|
+  | `DecideAction` (blocking gRPC round trip to Python) | 935.07 s | **57.5%** |
+  | `AgentSendState` (packaging observations) | 74.90 s | 4.6% |
+  | `AgentAct` (applying actions) | 38.88 s | 2.4% |
+
+  Over half the run is Unity **blocked waiting on the trainer** — ~2.1 ms of dead time per decision across 450,013 calls — while the work Unity actually performs for ML-Agents is ~7%. That's why all cores look half-busy: they burst through a physics step, then wait together.
 
   Neither `time_scale` nor more platforms per scene fixes that, since both add work to an environment that is already spending its time waiting. `--num-envs` does: each environment is a separate OS process, so while one blocks on Python the others keep simulating. Note the two multiply — `--num-envs=4` against this 20-platform scene is 80 agents across 4 processes.
 
