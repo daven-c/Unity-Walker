@@ -65,14 +65,19 @@ Use the `Walker` scene (20 parallel agents) for actual training; `Solo Walker` (
    pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
    ```
    Verify it's actually using the GPU: `python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"` should print `True` and your GPU's name. Don't expect it pegged, though — the network here is small enough that Unity's physics simulation is the real bottleneck, not the gradient step.
-4. Start training:
-   ```bash
-   mlagents-learn Assets/Python/config.yaml --run-id=<run-name> --torch-device=cuda
+4. Start training. On Windows, use `train.bat` — it always runs from the repo root regardless of your terminal's current directory, so `--results-dir` stays pinned to `Assets/Python/results` instead of landing wherever the shell happened to be (this bit us more than once):
+   ```cmd
+   train.bat --run-id=<run-name> --torch-device=cuda
    ```
-   Drop `--torch-device=cuda` if you're on CPU-only torch. Add `--resume` to continue an existing run-id instead of starting over, e.g.:
-   ```bash
-   mlagents-learn Assets/Python/config.yaml --run-id=Walker_First_Steps --resume --torch-device=cuda
+   Add `--resume` to continue an existing run-id instead of starting over:
+   ```cmd
+   train.bat --run-id=Walker_GetUp --resume --torch-device=cuda
    ```
+   On Mac/Linux (or if you'd rather not use the batch file), the equivalent is:
+   ```bash
+   mlagents-learn Assets/Python/config.yaml --results-dir=Assets/Python/results --run-id=<run-name> --torch-device=cuda
+   ```
+   Drop `--torch-device=cuda` if you're on CPU-only torch.
 5. Press Play in the Unity Editor when prompted to connect the environment. Use the `Walker` scene, not `Solo Walker`.
 6. Monitor progress with TensorBoard (in a separate terminal, since `mlagents-learn` blocks the one it's running in):
    ```bash
@@ -80,7 +85,7 @@ Use the `Walker` scene (20 parallel agents) for actual training; `Solo Walker` (
    ```
    Then open the printed URL (typically `http://localhost:6006`).
 
-A prior run (`Walker_First_Steps`) and its trained `.onnx` model are checked into `Assets/Python/results/` and `Assets/Examples/Walker/TFModels/` for reference/inference.
+A completed run (`Walker_GetUp`, 15M steps, fall-recovery reward) and its trained `.onnx` model are checked into `Assets/Python/results/` for reference/inference. `Assets/Examples/Walker/TFModels/Walker.onnx` is Unity's original stock pretrained model, still wired into the ragdoll's Behavior Parameters by default.
 
 ### Running a trained model
 
