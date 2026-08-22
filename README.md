@@ -38,7 +38,9 @@ Formally this is a **POMDP** rather than a clean MDP — the policy sees the sum
 
 Most observations are expressed in the space of an **orientation cube**: a stabilized transform that tracks the hips' position but points at the target with a level horizon. Working in that frame rather than world space means "forward" always means "toward the target," so the policy doesn't have to relearn the same gait for every compass heading.
 
-### State — 243 continuous values
+### State — 255 continuous values
+
+243 vector observations from `CollectObservations`, plus 12 from four ray sensors (`m_UseChildSensors: 1`).
 
 Global (18):
 
@@ -63,6 +65,10 @@ Per body part, ×16 (10 each = 160):
 Plus, for the 13 parts that are not hips/handL/handR (5 each = 65): local rotation quaternion (4) and `currentStrength / maxJointForceLimit` (1).
 
 **18 + 160 + 65 = 243**, matching `VectorObservationSize` on Behavior Parameters. `NumStackedVectorObservations: 1` — no frame stacking, so the policy has no memory of previous steps beyond what's in the current observation.
+
+**Ray sensors (12).** Four `RayPerceptionSensor3D` components — `RayPerceptionSensorL0/L1/R0/R1` — each contributing `(2 × raysPerDirection + 1) × (detectableTags + 2) = 1 × 3 = 3` floats. All four are configured identically: a **single** ray, `m_RayLength: 1`, detecting only the **`ground`** tag. They're short-range foot contact probes, not perception of the wider world.
+
+That last point matters for a multi-agent scene: **an agent cannot observe other agents.** The vector observations are entirely self-referential (its own body parts, its own target, its own orientation cube), and the ray sensors only report `ground` within 1 unit. Each ragdoll on its own platform is effectively an independent environment that happens to share a policy.
 
 ### Action — 39 continuous values
 
