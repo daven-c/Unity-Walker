@@ -98,3 +98,17 @@ InitTestScene*.unity*
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
 /venv
+
+# --- ML-Agents training artifacts ---
+
+# PyTorch checkpoints. ~16 MB each, and ml-agents retains `keep_checkpoints` of
+# them per run, so these dominate repo size. They're only needed locally, to
+# --resume or --initialize-from; the .onnx beside them is what Unity actually
+# loads for inference, and those stay tracked. Ignoring them here does not
+# delete your local copies, so the stage 1 -> stage 2 handoff still works.
+*.pt
+*.pt.meta
+
+# Per-Play-session profiling dumps. Rewritten on every run, never reviewed.
+/[Aa]ssets/ML-Agents/Timers/
+/[Aa]ssets/ML-Agents/Timers.meta
