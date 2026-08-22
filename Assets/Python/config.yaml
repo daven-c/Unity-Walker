@@ -23,7 +23,13 @@ behaviors:
         time_horizon: 1000
         summary_freq: 50000
 engine_settings:
-    time_scale: 20 # simulated seconds per real second; ml-agents applies ~20 by default anyway - raise with caution, high values can destabilize the ragdoll's physics
+    # Simulated seconds per real second. Measured from Walker_timers.json: 450,013 physics
+    # steps in 1,625 s = 277/sec, and at fixedDeltaTime 0.02 that is an *effective* 5.5x.
+    # time_scale 20 was requesting 1000 steps/sec, ~4x more than the machine can deliver, and
+    # Unity spends the difference perpetually trying to catch up - which is what makes the
+    # Editor unresponsive. 8 leaves headroom above the achieved rate without the thrash.
+    # Raising this cannot beat the Unity<->Python round trip; see the README Todo on --num-envs.
+    time_scale: 8
     quality_level: 0 # lowest render quality preset - no effect on physics/training, just cuts render cost
     width: 84
     height: 84 # tiny Game view resolution - you're not watching this closely during bulk training
