@@ -292,8 +292,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &817210725458528490
@@ -397,8 +397,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &1305995760539956326
@@ -1546,8 +1546,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &2503082026446516309
@@ -1749,8 +1749,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &2547913224165027939
@@ -2455,8 +2455,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &3599283674123386708
@@ -3536,8 +3536,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &4373694954210234204
@@ -3832,8 +3832,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &4409675767907316506
@@ -4171,8 +4171,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &4764054427077336680
@@ -5067,8 +5067,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &6942980172043134913
@@ -5360,8 +5360,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &8186187740333259570
@@ -5882,8 +5882,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &8991525264902532053
@@ -6090,8 +6090,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!1 &9133557816373326028

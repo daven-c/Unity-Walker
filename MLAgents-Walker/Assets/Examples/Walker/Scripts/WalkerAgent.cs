@@ -52,6 +52,11 @@ public class WalkerAgent : Agent
 
     public bool Inference;
 
+    [Header("Fall Recovery")]
+    [Range(0f, 1f)]
+    [Tooltip("Chance an episode starts with the ragdoll already knocked over, so it gets practice standing back up.")]
+    public float fallenStartProbability = 0.3f;
+
     //This will be used as a stabilized model space reference point for observations
     //Because ragdolls can move erratically during training, using a stabilized reference transform improves learning
     OrientationCubeController m_OrientationCube;
@@ -100,7 +105,17 @@ public class WalkerAgent : Agent
         }
 
         //Random start rotation to help generalize
-        hips.rotation = Quaternion.Euler(0, Random.Range(0.0f, 360.0f), 0);
+        var yaw = Random.Range(0.0f, 360.0f);
+        if (Random.value < fallenStartProbability)
+        {
+            //Tip the ragdoll onto its side/back/front so it has to practice getting up,
+            //rather than only ever starting from a stable standing pose.
+            hips.rotation = Quaternion.Euler(Random.Range(70f, 110f), yaw, Random.Range(0f, 360f));
+        }
+        else
+        {
+            hips.rotation = Quaternion.Euler(0, yaw, 0);
+        }
 
         UpdateOrientationObjects();
 
@@ -265,7 +280,13 @@ public class WalkerAgent : Agent
             );
         }
 
-        AddReward(matchSpeedReward * lookAtTargetReward);
+        // c. Staying upright / climbing back upright after a fall.
+        //Ground contact no longer ends the episode (see WalkerRagdoll prefab), so this is the
+        //only signal telling a fallen agent that standing back up is better than lying there -
+        //matchSpeedReward and lookAtTargetReward both go to ~0 while down, giving no gradient on their own.
+        var uprightReward = Mathf.Clamp01(Vector3.Dot(hips.up, Vector3.up));
+
+        AddReward(matchSpeedReward * lookAtTargetReward + 0.1f * uprightReward);
     }
 
     //Returns the average velocity of all of the body parts
