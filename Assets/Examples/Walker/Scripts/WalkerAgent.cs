@@ -10,10 +10,10 @@ using Random = UnityEngine.Random;
 public class WalkerAgent : Agent
 {
     [Header("Walk Speed")]
-    [Range(0.1f, 10)]
+    [Range(0.1f, 5)]
     [SerializeField]
     //The walking speed to try and achieve
-    private float m_TargetWalkingSpeed = 10;
+    private float m_TargetWalkingSpeed = 5;
 
     public float MTargetWalkingSpeed // property
     {
@@ -21,7 +21,11 @@ public class WalkerAgent : Agent
         set { m_TargetWalkingSpeed = Mathf.Clamp(value, .1f, m_maxWalkingSpeed); }
     }
 
-    const float m_maxWalkingSpeed = 10; //The max walking speed
+    //The max walking speed. Was 10 m/s, which is roughly a world-record sprint - the velocity
+    //matching reward is the only thing being optimized, so demanding that speed from a ragdoll
+    //that can barely walk is satisfied by hurling limbs around. 5 is a jog.
+    //Note this also normalizes GetMatchingVelocityReward, so changing it rescales reward magnitudes.
+    const float m_maxWalkingSpeed = 5;
 
     //Should the agent sample a new goal velocity each episode?
     //If true, walkSpeed will be randomly set between zero and m_maxWalkingSpeed in OnEpisodeBegin()
@@ -56,6 +60,16 @@ public class WalkerAgent : Agent
     [Range(0f, 1f)]
     [Tooltip("Chance an episode starts with the ragdoll already knocked over, so it gets practice standing back up.")]
     public float fallenStartProbability = 0.3f;
+
+    [Header("Motion Smoothness")]
+    [Range(0f, 0.5f)]
+    [Tooltip("Penalty per decision for how much the action vector changed since the last decision. " +
+             "Discourages twitchy, oscillating joint commands without penalizing smooth motion. " +
+             "Too high and the agent freezes to avoid paying it.")]
+    public float actionRatePenalty = 0.05f;
+
+    //Previous decision's continuous actions, for the action-rate penalty above.
+    float[] m_PrevActions;
 
     //This will be used as a stabilized model space reference point for observations
     //Because ragdolls can move erratically during training, using a stabilized reference transform improves learning
@@ -114,6 +128,10 @@ public class WalkerAgent : Agent
         {
             bodyPart.Reset(bodyPart);
         }
+
+        //Drop the action history so the first decision of the episode isn't charged an
+        //action-rate penalty for the discontinuity across the episode boundary.
+        m_PrevActions = null;
 
         //Random start rotation to help generalize
         var yaw = Random.Range(0.0f, 360.0f);
@@ -227,6 +245,29 @@ public class WalkerAgent : Agent
         bpDict[forearmL].SetJointStrength(continuousActions[++i]);
         bpDict[armR].SetJointStrength(continuousActions[++i]);
         bpDict[forearmR].SetJointStrength(continuousActions[++i]);
+
+        //Penalize how much the action vector moved since the last decision. Nothing else in the
+        //reward costs anything for slamming joints to full force or reversing them every frame,
+        //so without this the flailing gait scores the same as a smooth one.
+        if (m_PrevActions == null || m_PrevActions.Length != continuousActions.Length)
+        {
+            m_PrevActions = new float[continuousActions.Length];
+        }
+        else if (actionRatePenalty > 0f)
+        {
+            var delta = 0f;
+            for (var j = 0; j < continuousActions.Length; j++)
+            {
+                delta += Mathf.Abs(continuousActions[j] - m_PrevActions[j]);
+            }
+
+            AddReward(-actionRatePenalty * (delta / continuousActions.Length));
+        }
+
+        for (var j = 0; j < continuousActions.Length; j++)
+        {
+            m_PrevActions[j] = continuousActions[j];
+        }
     }
 
     //Update OrientationCube and DirectionIndicator

@@ -3920,7 +3920,7 @@ MonoBehaviour:
     maxStep: 0
   hasUpgradedFromAgentParameters: 1
   MaxStep: 5000
-  m_TargetWalkingSpeed: 10
+  m_TargetWalkingSpeed: 5
   randomizeWalkSpeedEachEpisode: 1
   target: {fileID: 0}
   hips: {fileID: 3047582133579042238}
