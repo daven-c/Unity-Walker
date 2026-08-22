@@ -30,17 +30,85 @@ Packages/                     # Unity package manifest (ML-Agents, URP, Input Sy
 ProjectSettings/
 ```
 
-## How the agent works
+## The MDP
 
-`WalkerAgent.cs` ([source](Assets/Examples/Walker/Scripts/WalkerAgent.cs)) controls a 16-body-part ragdoll (hips, chest, spine, head, arms, legs) via joint target rotations and per-joint strength, output as continuous actions from a PPO policy. Each step it observes:
+Everything below is defined in `WalkerAgent.cs` ([source](Assets/Examples/Walker/Scripts/WalkerAgent.cs)), which drives a 16-body-part ragdoll (hips, chest, spine, head, arms, legs) through `ConfigurableJoint` targets.
 
-- Per-body-part ground contact, velocity, angular velocity, position relative to the hips, and joint strength.
-- Its velocity relative to a goal walking speed and direction (via a stabilized "orientation cube" reference frame).
-- The target's position relative to that same frame.
+Formally this is a **POMDP** rather than a clean MDP — the policy sees the summary below, not the full physics state (contact forces, joint velocities, the target's own motion), so some of what determines the next state is hidden from it.
 
-Reward is shaped from how closely the ragdoll matches the target walking speed and how well its head/body face the direction of travel — both **gated by posture** (torso vertical × standing height), plus a bonus for touching the target. The gating matters: speed is measured from average body velocity and facing from head yaw, both of which a crawling ragdoll satisfies just fine. An earlier version added posture as a small bonus instead of gating on it, and the agent converged on worming along the ground rather than walking.
+Most observations are expressed in the space of an **orientation cube**: a stabilized transform that tracks the hips' position but points at the target with a level horizon. Working in that frame rather than world space means "forward" always means "toward the target," so the policy doesn't have to relearn the same gait for every compass heading.
 
-Falling no longer ends the episode: ~30% of episodes start with the ragdoll already knocked over so it gets dedicated practice standing back up (see `fallenStartProbability` on `WalkerAgent`). The standalone posture term is what gives a fallen agent a gradient to stand, since the gated locomotion reward stays near zero until it does.
+### State — 243 continuous values
+
+Global (18):
+
+| Observation | Floats |
+|---|---|
+| Distance between goal velocity and actual average velocity | 1 |
+| Average body velocity, in cube space | 3 |
+| Goal velocity, in cube space | 3 |
+| Rotation from `hips.forward` to cube forward (quaternion) | 4 |
+| Rotation from `head.forward` to cube forward (quaternion) | 4 |
+| Target position, in cube space | 3 |
+
+Per body part, ×16 (10 each = 160):
+
+| Observation | Floats |
+|---|---|
+| Touching ground (bool) | 1 |
+| Linear velocity, cube space | 3 |
+| Angular velocity, cube space | 3 |
+| Position relative to hips, cube space | 3 |
+
+Plus, for the 13 parts that are not hips/handL/handR (5 each = 65): local rotation quaternion (4) and `currentStrength / maxJointForceLimit` (1).
+
+**18 + 160 + 65 = 243**, matching `VectorObservationSize` on Behavior Parameters. `NumStackedVectorObservations: 1` — no frame stacking, so the policy has no memory of previous steps beyond what's in the current observation.
+
+### Action — 39 continuous values
+
+All in `[-1, 1]`, remapped in `JointDriveController`. **Rotations (26):** each joint's target angle is lerped across that joint's configured angular limits, so the policy can't command anatomically impossible poses.
+
+| Joint | Axes | Floats |
+|---|---|---|
+| chest, spine | X, Y, Z | 6 |
+| footL, footR | X, Y, Z | 6 |
+| thighL, thighR | X, Y | 4 |
+| armL, armR | X, Y | 4 |
+| head | X, Y | 2 |
+| shinL, shinR | X | 2 |
+| forearmL, forearmR | X | 2 |
+
+**Strengths (13):** one per joint (chest, spine, head, thighL/R, shinL/R, footL/R, armL/R, forearmL/R), scaling that joint's `maximumForce` up to `maxJointForceLimit` (20000). This is why the action-rate penalty matters — the policy can slam every joint to full force and pay nothing for it.
+
+### Reward
+
+Per **physics step** (`FixedUpdate`):
+
+```
+matchSpeed × lookAtTarget × posture   +   0.1 × posture
+```
+
+| Term | Definition | Range |
+|---|---|---|
+| `matchSpeed` | `(1 − (‖v_avg − v_goal‖ / v_target)²)²` — sigmoid-ish decay from 1 to 0 as average body velocity deviates from the goal | 0–1 |
+| `lookAtTarget` | `(dot(cubeForward, headForward_flattened) + 1) / 2` | 0–1 |
+| `posture` | `clamp01(dot(hips.up, worldUp)) × clamp01(height / standingHeight)`, where `height` is head-to-lowest-foot and `standingHeight` is captured from the authored pose in `Initialize` | 0–1 |
+
+Per **decision** (`OnActionReceived`): `− actionRatePenalty × mean(|aₜ − aₜ₋₁|)`, discouraging twitchy joint commands.
+
+On **target contact**: `+1` (`TouchedTarget`).
+
+Two design notes worth carrying forward:
+
+- **Posture multiplies, it doesn't add.** `matchSpeed` is computed from *average body velocity* and `lookAtTarget` from *head yaw* — a ragdoll worming along the ground satisfies both. An earlier version made posture a `+0.1` additive bonus, and the agent converged on crawling, because crawling banked ~1.0/step and was far easier than bipedal gait. Gating means crawling now pays ≈0.
+- **The standalone `0.1 × posture` term is the get-up signal.** Once the gated locomotion term is ~0 for a fallen agent, this is the only gradient telling it that standing beats lying there.
+
+### Transitions and episode structure
+
+- **Dynamics:** Unity `PhysX` rigidbody simulation. `DecisionPeriod: 5` with `TakeActionsBetweenDecisions: 0` — the policy acts every 5th physics step and the command is held in between.
+- **Termination:** `MaxStep: 5000` decisions only (≈25,000 physics steps ≈ 500 simulated seconds). There is **no early termination** — ground contact used to end the episode, but `agentDoneOnGroundContact` is disabled on all 12 torso/head/hand parts so falling is a recoverable state rather than a reset. ML-Agents bootstraps the value estimate at a step-limit cutoff rather than treating it as terminal, so timing out isn't implicitly punished.
+- **Initial state distribution** (`OnEpisodeBegin`): body parts reset to the authored pose, hips given a uniformly random yaw, and with probability `fallenStartProbability` (0.3) the ragdoll is tipped over (pitch 70–110°, random roll) so recovery gets dedicated practice. Target walking speed is resampled uniformly in 0.1–5 m/s when `randomizeWalkSpeedEachEpisode` is on.
+- **Discounting:** `gamma: 0.995` and `time_horizon: 1000` in `config.yaml`, with GAE `lambd: 0.95`. The high gamma matters for a task where the payoff for standing up arrives many steps after the effort to do it.
 
 ## Training
 
