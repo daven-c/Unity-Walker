@@ -112,3 +112,8 @@ InitTestScene*.unity*
 # Per-Play-session profiling dumps. Rewritten on every run, never reviewed.
 /[Aa]ssets/ML-Agents/Timers/
 /[Aa]ssets/ML-Agents/Timers.meta
+
+# Scratch copies of tfevents files, made to work around Unity's .meta siblings
+# confusing TensorBoard's directory watcher. See the README Todo on moving
+# results out of Assets/.
+/tblogs/

@@ -295,6 +295,19 @@ Rule of thumb: **`--initialize-from` when adding a skill, start fresh when remov
 
 ## Todo
 
+- **Move training results out of `Assets/`.** They currently live in `Assets/Python/results/`, which puts them inside Unity's asset pipeline — so Unity generates a `.meta` sibling for every file, including each `events.out.tfevents.*`. TensorBoard's directory watcher sorts alphabetically, latches onto `<file>.meta` (Unity YAML, not TF events), and then errors on every update:
+
+  ```
+  File ...events.out.tfevents.1787431335.DCPC.23080.0 updated even though the
+  current file is ...events.out.tfevents.1787431335.DCPC.23080.0.meta
+  ```
+
+  The graphs can go stale as a result. It also means Unity imports 16 MB `.pt` checkpoints as assets for no reason. mlagents-learn's default of writing to `results/` at the repo root was correct; pinning `--results-dir` into `Assets/` was the mistake.
+
+  Fix (do it while **no run is active** — moving files under `Assets/` mid-run triggers an asset refresh that can disturb training): `git mv` each run to a repo-root `results/`, delete the orphaned `.meta` files, and change `train.bat` to `--results-dir=results`. Copy just the final `.onnx` into `Assets/Examples/Walker/TFModels/` when you want it assignable in the Inspector. **Move `Walker_Stage1` before resuming it**, or `--resume` won't find the run and will silently start over.
+
+  Interim workaround: `tblogs/` holds `.meta`-free copies of the event files — regenerate with `find <run>/Walker -maxdepth 1 -name 'events.out.tfevents.*' ! -name '*.meta' -exec cp {} tblogs/<run>/ \;` and point `tensorboard --logdir tblogs` at it. It's a snapshot, not live.
+
 - **Run stage 2 once stage 1 has a competent walker** — see the two-stage curriculum above for the two prefab fields to flip and the `--initialize-from` invocation.
 - **Automate the curriculum.** `m_ResetParams` in `WalkerAgent` is an assigned-but-unused `EnvironmentParameters` hook, which is exactly what ML-Agents' native curriculum system drives. Wiring `fallenStartProbability` (and a termination toggle) through it would make both stages one `mlagents-learn` job with lessons in `config.yaml`, instead of two manual runs with an Inspector edit between them.
 - **Headless parallel training** — build the project to a standalone player (File → Build) and run `mlagents-learn` against it with `--no-graphics --num-envs=N`. This is the main remaining throughput win.
