@@ -1150,11 +1150,15 @@ MonoBehaviour:
   m_GameObject: {fileID: 1392866527}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ec40c70d5160b47cd8deaab79e24892c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  target: {fileID: 1997371326124021637}
-  smoothingTime: 0.1
+  m_Script: {fileID: 11500000, guid: 83d7b886385fb48b999bc3fbc41bc181, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  mainSpeed: 10
+  shiftAdd: 25
+  maxShift: 100
+  camSens: 0.25
+  rotateOnlyIfMousedown: 1
+  movementStaysFlat: 1
 --- !u!114 &1392866534
 MonoBehaviour:
   m_ObjectHideFlags: 0
