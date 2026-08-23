@@ -34,7 +34,7 @@ behaviors:
           memory: null
           goal_conditioning_type: hyper
           deterministic: false
-    init_path: results\Walker_Stage1\Walker\checkpoint.pt
+    init_path: null
     keep_checkpoints: 5
     checkpoint_interval: 500000
     max_steps: 6000000
@@ -67,7 +67,7 @@ environment_parameters:
     - value:
         sampler_type: constant
         sampler_parameters:
-          seed: 6293
+          seed: 5432
           value: 90
       name: fallen_tilt
       completion_criteria: null
@@ -76,15 +76,15 @@ environment_parameters:
     - value:
         sampler_type: constant
         sampler_parameters:
-          seed: 6294
+          seed: 5433
           value: 80
       name: fallen_tilt_min
       completion_criteria: null
 checkpoint_settings:
   run_id: Walker_GetupOnly
-  initialize_from: Walker_Stage1
+  initialize_from: null
   load_model: false
-  resume: false
+  resume: true
   force: false
   train_model: false
   inference: false

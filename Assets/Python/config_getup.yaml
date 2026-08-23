@@ -19,7 +19,9 @@ behaviors:
                 gamma: 0.995
                 strength: 1.0
         keep_checkpoints: 5
-        max_steps: 6000000 # Stage2f was still improving at 15M and had only reached the
+        max_steps: 20000000 # Was 6M. Resuming a run that has reached max_steps exits immediately,
+                            # and the linear LR schedule has decayed to zero there anyway, so
+                            # raising it is required to continue - not just to allow more steps. # Stage2f was still improving at 15M and had only reached the
                             # hardest lesson with 1M steps left. Doubled to give it real time.
         time_horizon: 1000
         summary_freq: 50000
