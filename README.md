@@ -496,6 +496,25 @@ Fixing it exposed a second thing I'd had backwards. Kneeling scores ~0.52/step a
 
 So the ramp is now two lessons instead of five, and the first lasts 500k steps rather than 2M. 0.45 clears a clean kneel but not a slumped crawl. 0.65 clears no kneel at all. With tilt uniform over [0, 90], about a third of episodes already start above 0.65, and those carry the signal that matters most: *you began upright, and collapsing now ends the episode.*
 
+### 19. `Walker_Getup5` — the bar bit, and nothing moved
+
+The ratchet finally fired at 550k. It worked exactly as designed and the policy did not respond:
+
+| step | posture | peak | upright | eplen | value est. | entropy | lesson |
+|---|---|---|---|---|---|---|---|
+| 500k | 0.541 | 0.604 | 0.001 | 912 | 486 | 0.815 | 0 |
+| 550k | 0.427 | 0.604 | 0.002 | **247** | 478 | 0.817 | **1** |
+| 700k | 0.396 | 0.598 | 0.003 | 123 | 190 | 0.813 | 1 |
+| 1.0M | 0.398 | 0.592 | 0.003 | 120 | 136 | 0.812 | 1 |
+
+Episode length pinned at **120 decisions** — precisely the 600-physics-step timeout — so *every* episode is being cut. `PeakPosture` moved 0.604 → 0.592 across 450k steps of maximum pressure. Entropy flat within 0.005. Value estimate collapsed 486 → 136 as the critic correctly learned the situation is worth little.
+
+**A termination condition only produces a gradient if some episodes clear it and some don't.** Peak posture is 0.59 and the bar is 0.65, so nothing clears it, every episode ends identically, and there is no variance for the advantage estimator to work with. The bar stopped being a signal and became a constant. Compressing five lessons into two put the second one out of reach — at 0.45 everything cleared (eplen ~900), at 0.65 nothing does (eplen 120), and the discriminating value in between is ~0.60.
+
+But recalibrating the bar would not fix the real result: **450k steps of maximum pressure moved peak posture by zero.** `TimeUpright` ≈ 0.003 says that even episodes handed a standing start collapse within a fraction of a second. This lineage cannot hold a stand, and no amount of pressure on a policy makes it do something outside its reach.
+
+The corollary is where to go next. Every run since `GetupOnly` has been seeded from a **kneeler** — a policy whose entire experience is crawling. `Walker_Stage1` is the opposite: 15M steps in which falling was terminal, so 100% of its experience is upright. It has exactly the half that cannot be found by exploration, and its limitation — never having fallen — is the thing we can actually train. Seed from the policy that already has the terminal skill, and teach it the approach.
+
 One honest note on the rescale in §16: raising the posture coefficient 0.1 → 1.0 also cut the shaping term's *relative* weight from ~11% of posture reward to ~1%, diluting the one term that pays for the transition itself. Left alone for now — the level term at 10× does most of what shaping was compensating for, and this run already has enough moving parts — but it's a knob to revisit before adding new ones.
 
 ## Notes on reward design and retraining
