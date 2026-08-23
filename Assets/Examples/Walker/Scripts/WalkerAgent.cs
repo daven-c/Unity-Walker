@@ -423,6 +423,15 @@ public class WalkerAgent : Agent
         m_PrevPosture = postureReward;
         m_HasPrevPosture = true;
 
+        //Report posture to TensorBoard. Until now its value had to be back-solved from reward,
+        //which is a poor way to pick collapsedPostureThreshold - the agent settles at whatever pose
+        //just clears that number, so the number has to be set against measured values, not guesses.
+        //The histogram is the informative one: the mean can't distinguish "always kneeling at 0.4"
+        //from "half the time prone, half standing", and the upper percentiles answer whether it
+        //ever reaches a genuine stand.
+        Academy.Instance.StatsRecorder.Add("Walker/Posture", postureReward,
+            StatAggregationMethod.Histogram);
+
         //Cut the episode short if the ragdoll has been collapsed for too long. The counter resets
         //the moment posture recovers, so an agent making progress toward standing keeps its time.
         if (collapsedStepLimit > 0)
