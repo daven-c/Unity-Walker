@@ -39,10 +39,17 @@ behaviors:
         keep_checkpoints: 1
         # 7 lessons x 50k. max_steps IS the intended length, so `progress` means what it says.
         max_steps: 350000
-        time_horizon: 1000
-        # 10k rather than 50k: five data points inside each 50k lesson, so a lesson boundary is
-        # visible and a partially-converged lesson is distinguishable from a settled one.
-        summary_freq: 10000
+        # 200, not the 1000 used for training. The trainer's step counter only advances when
+        # trajectories are handed to it, which happens at time_horizon or episode end - so steps
+        # arrive in chunks of num_agents x time_horizon. At 40 agents x 1000 that is 40,000 steps
+        # at a time, which is why the first probe produced 9 summaries instead of 35 and roughly
+        # one usable sample per lesson. 40 x 200 = 8,000 gives ~6 per lesson.
+        #
+        # Safe to change ONLY because this config does not learn: time_horizon sets the value
+        # bootstrapping horizon, which matters a great deal at a real learning rate and not at all
+        # at 1e-8. Do not copy this number into config_getup.yaml.
+        time_horizon: 200
+        summary_freq: 8000
 environment_parameters:
     posture_focus: 1.0
     # Collapse cut DISABLED. Any bar above 0 truncates the failing tilts at 600 physics steps,
