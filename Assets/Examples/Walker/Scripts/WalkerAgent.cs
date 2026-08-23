@@ -101,8 +101,12 @@ public class WalkerAgent : Agent
 
     [Range(0f, 1f)]
     [Tooltip("Blends the objective from 'chase the target' (0) toward 'just stand up' (1). At 1 the " +
-             "locomotion term and the touch bonus are switched off entirely and posture is the whole " +
-             "reward, so there is nothing to earn by crawling.\n\n" +
+             "locomotion term is switched off entirely and posture is the whole reward, so there is " +
+             "nothing to earn by crawling.\n\n" +
+             "This is the REWARD-side switch, and it is the right layer for it. The target object " +
+             "stays in the scene: CollectObservations feeds its position through the orientation " +
+             "cube, so deleting it null-refs and changes the observation size, which would break " +
+             "--initialize-from against any existing model.\n\n" +
              "Isolating the START STATE (100% prone) is what made recovery learnable at all, but it " +
              "left the OBJECTIVE mixed, and the target kept paying: at 20M steps the locomotion term " +
              "was 74% of a knee-crawler's income against posture's 23%. Standing still scores better " +
@@ -536,8 +540,11 @@ public class WalkerAgent : Agent
     /// </summary>
     public void TouchedTarget()
     {
-        //Faded out with the rest of the locomotion objective. Small next to the per-step terms, but
-        //it is the one reward a crawler can collect repeatedly without ever standing up.
+        //NOTE: nothing calls this. TargetController fires its collision UnityEvents, but no prefab
+        //or scene in this project wires one to TouchedTarget, so the touch bonus has never been
+        //paid. Independently confirmed by the reward decomposition in the README: the three
+        //continuous terms sum to 0.228/step against a measured 0.2277, leaving no room for a
+        //fourth. Kept (and faded with posture_focus) so it stays correct if it is ever wired up.
         AddReward(1f - m_PostureFocus);
     }
 }
