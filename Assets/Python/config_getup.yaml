@@ -42,8 +42,70 @@ behaviors:
 # kneel (mean reward 954, episode length ~838 against a no-recovery floor of 120). No demonstrations
 # needed. The remaining problem is not "can't get up", it is "stops halfway" - see collapse_posture.
 environment_parameters:
-    fallen_tilt: 90
-    fallen_tilt_min: 80
+    # Reverse curriculum on the start pose - teach the LAST part of the get-up first.
+    #
+    # Walker_Getup3 showed the flat-90 start is an exploration dead end. Seeded from the 20M
+    # kneeler with the target switched off, posture sat at 0.511-0.523 and entropy at 0.671-0.672
+    # for 300k steps: not slow learning, a converged policy with no gradient it can act on. Level
+    # reward already pays ~2x more for standing than kneeling, so the incentive is not missing.
+    # What is missing is that this policy has NEVER BEEN UPRIGHT, so nothing in its experience
+    # tells it what upright feels like or how to hold it.
+    #
+    # Undirected exploration cannot fix that - raising beta injects noise into 39 joint targets,
+    # and no amount of that noise produces a coordinated rise. Structured exploration can: start
+    # the episode in states the policy cannot reach on its own. Lesson 0 starts it near-upright,
+    # where the whole task is "don't collapse to the kneel", and the tilt then ramps backward
+    # until the start is prone again.
+    #
+    # This is the curriculum GetupOnly deleted, restored. It failed the first time because walking
+    # diluted it to ~15% get-up practice - and posture_focus below is precisely what removes that
+    # dilution. The reason it failed is gone, so the idea is worth having back.
+    #
+    # min trails max by a wide margin so every lesson spans a RANGE. Lesson 3 is [60,90], not
+    # [80,90], so the easier poses stay in the data and balance isn't forgotten while prone is
+    # relearned.
+    fallen_tilt:
+        curriculum:
+            - name: Balance # [0,30] - essentially a standing start. Learn to hold it.
+              completion_criteria: &tilt_0
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 500
+                  threshold: 0.15
+              value: 30
+            - name: Stumble # [15,55] - recover a lean without going down
+              completion_criteria: &tilt_1
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 500
+                  threshold: 0.35
+              value: 55
+            - name: Toppled # [35,78] - past the point where posture drops under the collapse bar
+              completion_criteria: &tilt_2
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 500
+                  threshold: 0.55
+              value: 78
+            - name: Prone # [60,90] - the full get-up, which is where GetupOnly started
+              value: 90
+    # Anchors reused so the two ramps advance on the same schedule and can't drift apart silently.
+    fallen_tilt_min:
+        curriculum:
+            - name: Balance
+              completion_criteria: *tilt_0
+              value: 0
+            - name: Stumble
+              completion_criteria: *tilt_1
+              value: 15
+            - name: Toppled
+              completion_criteria: *tilt_2
+              value: 35
+            - name: Prone
+              value: 60
     # Switch the target off. Posture is the entire reward here; there is nothing to earn by moving.
     #
     # Isolating the start state (fallen_tilt above) made recovery learnable, but it left the

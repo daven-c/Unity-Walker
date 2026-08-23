@@ -403,7 +403,11 @@ This is not the lesson stage 2 exists to unlearn. That was "touching the ground 
 
 **Neither change was in effect for the 20M run.** Training was launched seven minutes before the ramp and the `EndEpisode` swap were written, so the whole 6M→20M stretch ran at a flat 0.2 with the bootstrapping cut. That is legible after the fact because `mlagents-learn` writes the config it actually used to `results/<run-id>/configuration.yaml`, and that file has no `collapse_posture` key at all.
 
-Which makes it a clean measurement of the un-ramped policy rather than a wasted run — but the lesson holds regardless: **check `results/<run-id>/configuration.yaml` after launch, not the file you edited.** A curriculum that silently isn't there looks exactly like a curriculum that isn't working, and 14 M steps is a long time to spend on that distinction.
+Which makes it a clean measurement of the un-ramped policy rather than a wasted run — but the lesson holds regardless: **a curriculum that silently isn't there looks exactly like a curriculum that isn't working**, and 14M steps is a long time to spend on that distinction. Verify, don't assume.
+
+`configuration.yaml` is *not* how to verify it live, though — `mlagents-learn` writes it at **exit**, within milliseconds of the final model export, not at launch. It's a reliable record afterwards and useless during. Check TensorBoard instead: every environment parameter gets an `Environment/Lesson Number/<name>` scalar, and those appear within the first summary. If the tag isn't there, the parameter isn't being sent.
+
+That only proves Python sent it. To prove the *C# read it*, you need a quantity that must move if it took effect — `posture_focus` was confirmed by mean reward jumping 2.65×, which cannot happen unless `WalkerAgent` recompiled and picked up the new term. A silently-ignored parameter is the failure mode worth designing a check against, because Unity will happily run stale compiled code.
 
 ### 15. Next: `Walker_Getup2`, seeded from the kneeler
 
@@ -436,6 +440,28 @@ The fix is the same move that made `Walker_GetupOnly` work, applied one level in
 Reward magnitude is sized so a full stand pays about what standing-and-walking used to. That's cosmetic — PPO normalises advantages — and it does **not** make the curve comparable to earlier runs at intermediate poses: a kneel now earns ~0.52/step against ~0.23 before, so reward jumps ~2× at unchanged behavior. **Read `Walker/Posture`, not reward, while this is on.**
 
 **The general lesson: check what fraction of the reward the unwanted behavior is actually collecting, before assuming the reward ranks it correctly.** Ranking is not the same as incentive. A term can rank the target behavior first and still fund the wrong one, because what the agent follows is the local gradient and what it defends is its current income.
+
+### 17. `Walker_Getup3` — the target wasn't the whole answer
+
+With `posture_focus: 1.0` there is nothing left to earn by moving, and the agent kept knee-crawling anyway:
+
+| Step | Posture | Reward | Reward / physics step | Entropy |
+|---|---|---|---|---|
+| 50k | 0.515 | 2,527 | 0.513 | 0.671 |
+| 150k | 0.520 | 2,605 | 0.521 | 0.671 |
+| 300k | 0.518 | 2,625 | 0.526 | 0.672 |
+
+A useful side effect first: with posture as the entire reward, **reward ÷ physics steps *is* mean posture** (0.513 vs 0.515, and so on down the table). The headline metric became a direct readout of the thing we care about, which is worth engineering for on purpose.
+
+Three flat columns is the finding. Posture varies by ±0.006 and entropy by ±0.001 across 300k steps — that is not slow learning, it is a converged policy sitting still. Removing the target removed the *reason* to crawl, and the crawling continued, so the target was never the whole story.
+
+The diagnosis: standing already pays ~2× kneeling per step, so the incentive is not missing. What's missing is that **this policy has never been upright.** Nothing in 20M steps of experience tells it what upright feels like or how to hold it, and the rise is a multi-second coordinated maneuver that undirected action noise will never stumble into. Raising `beta` would inject more noise into 39 joint targets; more noise does not assemble a coordinated motion.
+
+So the fix is **structured exploration instead: start the episode in states the policy cannot reach on its own.** `fallen_tilt` becomes a reverse curriculum — `[0,30] → [15,55] → [35,78] → [60,90]` — so lesson 0 starts it near-upright where the entire task is "don't collapse to the kneel", and the start pose then ramps backward until it's prone again. Teach the last part of the skill first, then extend backward toward the hard start.
+
+This is the curriculum `GetupOnly` deleted. It failed the first time because walking diluted it to ~15% get-up practice — and `posture_focus` is exactly what removes that dilution. **The reason it failed is gone, so the idea is worth having back.** Each lesson also spans a wide range rather than a single tilt, so easy poses stay in the data and balance isn't forgotten while prone is relearned.
+
+One honest note on the rescale in §16: raising the posture coefficient 0.1 → 1.0 also cut the shaping term's *relative* weight from ~11% of posture reward to ~1%, diluting the one term that pays for the transition itself. Left alone for now — the level term at 10× does most of what shaping was compensating for, and this run already has enough moving parts — but it's a knob to revisit before adding new ones.
 
 ## Notes on reward design and retraining
 
