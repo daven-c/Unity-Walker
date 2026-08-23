@@ -1,0 +1,131 @@
+# E0 - MEASUREMENT, NOT TRAINING. See EXPERIMENT.md.
+#
+# Sweeps start tilt through 0/10/20/30/45/60/90 with the policy effectively frozen, and reads
+# Walker/PeakPosture and Walker/TimeUpright at each. Produces the recovery frontier of whatever
+# policy is passed with --initialize-from: the largest tilt it can still stay upright from.
+#
+# That number has been guessed three times and measured zero times, and every curriculum threshold
+# in config_getup.yaml depends on it.
+#
+#   mlagents-learn Assets\Python\config_probe.yaml --results-dir=results --run-id=Probe_Stage1 \
+#       --initialize-from=Walker_Stage1 --torch-device=cuda
+#
+# ~350k steps, about four minutes. Also an end-to-end instrument check: if Probe_Stage1 does not
+# show TimeUpright > 0.8 at tilt 0, --initialize-from is not transferring the policy at all.
+behaviors:
+    Walker:
+        trainer_type: ppo
+        hyperparameters:
+            batch_size: 2048
+            buffer_size: 20480
+            # 1e-8 with a constant schedule: the policy does not meaningfully move over 350k steps,
+            # so each lesson measures the SEEDED policy rather than one already adapting to the
+            # tilt being measured. Not zero, because mlagents still wants a valid optimiser.
+            learning_rate: 1.0e-8
+            beta: 0.005
+            epsilon: 0.2
+            lambd: 0.95
+            num_epoch: 3
+            learning_rate_schedule: constant
+        network_settings:
+            # Must match the seeded run exactly or the checkpoint will not load.
+            normalize: true
+            hidden_units: 512
+            num_layers: 3
+        reward_signals:
+            extrinsic:
+                gamma: 0.995
+                strength: 1.0
+        keep_checkpoints: 1
+        # 7 lessons x 50k. max_steps IS the intended length, so `progress` means what it says.
+        max_steps: 350000
+        time_horizon: 1000
+        # 10k rather than 50k: five data points inside each 50k lesson, so a lesson boundary is
+        # visible and a partially-converged lesson is distinguishable from a settled one.
+        summary_freq: 10000
+environment_parameters:
+    posture_focus: 1.0
+    # Collapse cut DISABLED. Any bar above 0 truncates the failing tilts at 600 physics steps,
+    # which is exactly the episode-length confound that makes mean posture unreadable (F9) - and
+    # here it would also cut short the episodes whose behaviour is the thing being measured.
+    # postureReward < 0 is never true, so the timer never fires.
+    collapse_posture: 0.0
+    # Fixed tilt per lesson: min and max equal, so each lesson is one clean data point rather than
+    # a distribution. This is the opposite of the training configs, which sample a range on purpose.
+    fallen_tilt:
+        curriculum:
+            - name: t00
+              completion_criteria: &step
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: false
+                  min_lesson_length: 10
+                  threshold: 0.143
+              value: 0
+            - name: t10
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.286
+              value: 10
+            - name: t20
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.429
+              value: 20
+            - name: t30
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.571
+              value: 30
+            - name: t45
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.714
+              value: 45
+            - name: t60
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.857
+              value: 60
+            - name: t90
+              value: 90
+    fallen_tilt_min:
+        curriculum:
+            - name: t00
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.143
+              value: 0
+            - name: t10
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.286
+              value: 10
+            - name: t20
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.429
+              value: 20
+            - name: t30
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.571
+              value: 30
+            - name: t45
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.714
+              value: 45
+            - name: t60
+              completion_criteria:
+                  <<: *step
+                  threshold: 0.857
+              value: 60
+            - name: t90
+              value: 90
+engine_settings:
+    time_scale: 8
+    quality_level: 0
+    width: 84
+    height: 84
+    no_graphics: false
