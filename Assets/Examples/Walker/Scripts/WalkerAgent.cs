@@ -74,11 +74,19 @@ public class WalkerAgent : Agent
 
     [Range(0f, 110f)]
     [Tooltip("Upper bound on how far a fallen start tips the ragdoll. Pitch is sampled UNIFORMLY in " +
-             "[0, this], so every batch spans the difficulty range rather than sitting at one value. " +
-             "Posture falls off as ~cos^2(tilt) and only drops below collapsedPostureThreshold around " +
-             "63 degrees, so anything under that is a balance perturbation rather than a get-up. " +
-             "Overridden by the 'fallen_tilt' environment parameter so config.yaml can ramp it.")]
+             "[fallenStartMinTilt, this], so a batch can span the difficulty range rather than " +
+             "sitting at one value. Posture falls off as ~cos^2(tilt) and only drops below " +
+             "collapsedPostureThreshold around 63 degrees, so anything under that is a balance " +
+             "perturbation rather than a get-up. Overridden by the 'fallen_tilt' environment " +
+             "parameter so config.yaml can ramp it.")]
     public float fallenStartTilt = 30f;
+
+    [Range(0f, 110f)]
+    [Tooltip("Lower bound on fallen-start pitch. Leave at 0 for a curriculum that spans easy to hard. " +
+             "Set near fallenStartTilt (e.g. 80 with tilt 90) to train get-up ONLY, with no balance " +
+             "perturbations diluting it - useful as a decisive test of whether recovery is learnable " +
+             "at all. Overridden by the 'fallen_tilt_min' environment parameter.")]
+    public float fallenStartMinTilt;
 
     [Tooltip("Weight on shaping over posture: k * (posture_t - posture_t-1), the pure difference. " +
              "The plain posture term is a LEVEL reward - it says where you are, not whether you're " +
@@ -186,7 +194,8 @@ public class WalkerAgent : Agent
             //to 90 with nothing in between. Sampling the whole range keeps a continuous difficulty
             //gradient in every batch, so there are always cases just beyond what it can already do.
             var tilt = m_ResetParams.GetWithDefault("fallen_tilt", fallenStartTilt);
-            var pitch = Mathf.Clamp(Random.Range(0f, tilt), 0f, 110f);
+            var minTilt = Mathf.Min(m_ResetParams.GetWithDefault("fallen_tilt_min", fallenStartMinTilt), tilt);
+            var pitch = Mathf.Clamp(Random.Range(minTilt, tilt), 0f, 110f);
             hips.rotation = Quaternion.Euler(pitch, yaw, Random.Range(0f, 360f));
         }
         else

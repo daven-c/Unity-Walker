@@ -1,0 +1,48 @@
+behaviors:
+    Walker:
+        trainer_type: ppo
+        hyperparameters:
+            batch_size: 2048
+            buffer_size: 20480
+            learning_rate: 0.0003
+            beta: 0.005
+            epsilon: 0.2
+            lambd: 0.95
+            num_epoch: 3
+            learning_rate_schedule: linear
+        network_settings:
+            normalize: true # CRITICAL: Normalizes the wild ranges of 39 different joint angles
+            hidden_units: 512 # A massive brain to handle the complexity
+            num_layers: 3 # Deep layers for complex motor control
+        reward_signals:
+            extrinsic:
+                gamma: 0.995
+                strength: 1.0
+        keep_checkpoints: 5
+        max_steps: 6000000 # Stage2f was still improving at 15M and had only reached the
+                            # hardest lesson with 1M steps left. Doubled to give it real time.
+        time_horizon: 1000
+        summary_freq: 50000
+# GET-UP ONLY. A decisive test of whether recovery is learnable from this reward at all.
+# Every episode starts near-prone (80-90 deg) - no walking starts, no balance perturbations - so
+# 100% of experience is get-up practice, against ~15% under the graduated curriculum. Pair with
+# fallenStartProbability = 1.0 on the ragdoll prefab.
+#
+# Decision rule: if a few million steps of this produce no recovery, the behaviour is not reachable
+# by exploration from this reward, and the answer is demonstrations (BC/GAIL over a scripted get-up),
+# not further curriculum tuning.
+environment_parameters:
+    fallen_tilt: 90
+    fallen_tilt_min: 80
+engine_settings:
+    # Simulated seconds per real second. Measured from Walker_timers.json: 450,013 physics
+    # steps in 1,625 s = 277/sec, and at fixedDeltaTime 0.02 that is an *effective* 5.5x.
+    # time_scale 20 was requesting 1000 steps/sec, ~4x more than the machine can deliver, and
+    # Unity spends the difference perpetually trying to catch up - which is what makes the
+    # Editor unresponsive. 8 leaves headroom above the achieved rate without the thrash.
+    # Raising this cannot beat the Unity<->Python round trip; see the README Todo on --num-envs.
+    time_scale: 8
+    quality_level: 0 # lowest render quality preset - no effect on physics/training, just cuts render cost
+    width: 84
+    height: 84 # tiny Game view resolution - you're not watching this closely during bulk training
+    no_graphics: false # only takes effect against a standalone build, not Editor Play mode
