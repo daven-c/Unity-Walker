@@ -36,6 +36,45 @@ behaviors:
 environment_parameters:
     fallen_tilt: 90
     fallen_tilt_min: 80
+    # The bar the ragdoll has to clear to reset its collapse timer, ramped upward.
+    #
+    # Set from measurement, not geometry: the Walker/Posture histogram for the kneeling policy
+    # tops out around 0.5, so 0.5 is this policy's CEILING, not its typical value. Standing is
+    # 1.0 by construction (m_StandingHeight is calibrated from the ragdoll's own pose at
+    # Initialize), so 0.5 is roughly halfway - torso upright but folded down onto the shins.
+    #
+    # NOTE ON RESUMING: progress = current_step / max_steps, so resuming Walker_GetupOnly at
+    # step 6M of 20M starts at progress 0.30 and skips any lesson whose threshold is below it.
+    # The thresholds below are therefore written against 6M, not 0 - lesson 0 exists to give
+    # ~1M steps of unchanged settings after the resume so a regression is attributable.
+    collapse_posture:
+        curriculum:
+            - name: Kneel # 0.2, unchanged. A kneel clears this forever; that is the bug.
+              completion_criteria:
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 500
+                  threshold: 0.35
+              value: 0.2
+            - name: GoodKneel # under the ceiling: a sloppy kneel no longer counts, a clean one does
+              completion_criteria:
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 500
+                  threshold: 0.55
+              value: 0.4
+            - name: AboveKneel # just past the ceiling - the current policy cannot clear this at all
+              completion_criteria:
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 500
+                  threshold: 0.75
+              value: 0.55
+            - name: Stand # a real stand, with slack for lean and bent knees. Not 1.0: nothing hits 1.0.
+              value: 0.7
 engine_settings:
     # Simulated seconds per real second. Measured from Walker_timers.json: 450,013 physics
     # steps in 1,625 s = 277/sec, and at fixedDeltaTime 0.02 that is an *effective* 5.5x.

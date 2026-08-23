@@ -69,15 +69,18 @@ public class WalkerAgent : Agent
     public int collapsedStepLimit = 600;
 
     [Range(0f, 1f)]
-    [Tooltip("Posture below this counts as collapsed for the timeout above.")]
+    [Tooltip("Posture below this counts as collapsed for the timeout above. Standing scores 1.0 by " +
+             "construction, so this is a fraction of a full stand. Set it from the Walker/Posture " +
+             "histogram, never by eye: whatever it is, the agent settles at the cheapest pose that " +
+             "clears it, and at 0.2 that pose is a kneel - which survives forever without standing. " +
+             "Overridden by the 'collapse_posture' environment parameter so config can ratchet it up.")]
     public float collapsedPostureThreshold = 0.2f;
 
     [Range(0f, 110f)]
     [Tooltip("Upper bound on how far a fallen start tips the ragdoll. Pitch is sampled UNIFORMLY in " +
              "[fallenStartMinTilt, this], so a batch can span the difficulty range rather than " +
-             "sitting at one value. Posture falls off as ~cos^2(tilt) and only drops below " +
-             "collapsedPostureThreshold around 63 degrees, so anything under that is a balance " +
-             "perturbation rather than a get-up. Overridden by the 'fallen_tilt' environment " +
+             "sitting at one value. Posture falls off as ~cos^2(tilt) and only drops below 0.2 around " +
+             "63 degrees, so anything under that is a balance perturbation rather than a get-up. Overridden by the 'fallen_tilt' environment " +
              "parameter so config.yaml can ramp it.")]
     public float fallenStartTilt = 30f;
 
@@ -447,11 +450,21 @@ public class WalkerAgent : Agent
             {
                 m_CollapsedSteps = 0;
 
-                //EpisodeInterrupted, NOT EndEpisode. This resolves to DoneReason.MaxStepReached,
-                //which bootstraps the value estimate. EndEpisode would mark a terminal state worth
-                //zero future reward, re-teaching "being on the ground is death" - exactly the lesson
-                //stage 2 exists to unlearn.
-                EpisodeInterrupted();
+                //EndEpisode, NOT EpisodeInterrupted. This was the other way round, and that made
+                //the bar above nearly inert: EpisodeInterrupted resolves to DoneReason.MaxStepReached,
+                //which BOOTSTRAPS V(s_T). Bootstrapping is the correct handling for a cutoff that is
+                //an artifact of the harness rather than the task - and it means the agent does not
+                //perceive the cutoff as costly at all. The bootstrapped target converges to the
+                //infinite-horizon value of kneeling, so raising the bar only shortened episodes; it
+                //never made kneeling score worse. EndEpisode marks a terminal state worth zero
+                //future reward, which is the honest label here.
+                //
+                //This is NOT the lesson stage 2 exists to unlearn. That was "touching the ground is
+                //death", which fired on contact and denied any chance to recover; it is still off
+                //(agentDoneOnGroundContact is 0 on all 16 body parts). This fires only after
+                //collapsedStepLimit steps of failing to get back up, and "failing to get up is
+                //failure" is the actual task.
+                EndEpisode();
             }
         }
     }

@@ -364,7 +364,23 @@ Episode length climbed to 838 against a floor of 120, max 978. After five runs t
 
 **The lesson: when a behavior won't emerge, check how much of the data actually contains it** before rewriting the reward. Across Stage2b–2f the agent was spending 85–99% of its experience on walking while the target behavior was recovery. Isolating the skill did in ~90 minutes what five multi-hour runs of reward and curriculum tuning could not.
 
-Caveat on where it got to: reward of 249 over an 838-decision episode is ~0.06/physics step, which back-solves to posture ≈ 0.3, i.e. ~57° from vertical. That is a propped or kneeling pose — clear of the 0.2 collapse threshold but short of standing. It may have learned to escape *collapsed* rather than to reach *upright*, which would match the "pushup with knees down" seen in earlier runs. Reward was still climbing at the 6M budget.
+Caveat on where it got to: it reaches a kneel, not a stand — clear of the 0.2 collapse threshold but well short of upright. Reward was still climbing at the 6M budget.
+
+### 14. Measuring the kneel — the collapse threshold was the target all along
+
+Rather than guess, `Walker/Posture` was logged to TensorBoard as a histogram and the run resumed briefly to read it. **The distribution tops out around 0.5.** Standing is 1.0 by construction (`m_StandingHeight` is calibrated from the ragdoll's own pose at `Initialize`), so 0.5 is the *ceiling* of this policy, not its typical value — torso upright, folded down onto the shins.
+
+That is worth stating plainly: my earlier estimate, back-solved from mean reward through an assumed rigid-tilt `cos²` model, was ≈0.3. It was wrong by most of the gap. A kneel holds the torso vertical, so `dot(hips.up, up)` stays near 1 and nearly all the loss comes from the height ratio — a shape the tilt model doesn't describe. **Back-solving a quantity out of an aggregate reward is not measurement.** Logging the quantity cost one line and settled it.
+
+Two changes follow from the number:
+
+**The threshold is now curriculum-ramped** — 0.2 → 0.4 → 0.55 → 0.7 — via the `collapse_posture` environment parameter. Any fixed bar becomes a target, because the agent settles at the cheapest pose that clears it; 0.2 means "off the floor", and the cheapest pose clearing "off the floor" is a kneel that survives indefinitely. 0.55 sits just above the measured ceiling, so the existing policy cannot clear it at all. Thresholds are written against progress ≥ 0.30, since resuming at step 6M of 20M starts a `measure: progress` curriculum a third of the way in and silently skips any earlier lesson.
+
+**The collapse cut is now `EndEpisode()` rather than `EpisodeInterrupted()`** — and without this, the ramp above would have been close to inert. `EpisodeInterrupted` resolves to `DoneReason.MaxStepReached`, which *bootstraps* `V(s_T)`. Bootstrapping is right for a cutoff that's an artifact of the harness rather than the task, and it means the agent doesn't perceive the cutoff as costly: the bootstrapped target converges to the infinite-horizon value of kneeling regardless of where the bar sits. Raising the bar would only have shortened episodes — a real effect on the *data distribution*, since shorter episodes mean more prone resets per hour, but no effect on the *objective*. `EndEpisode` marks a terminal state worth zero future reward, which makes failing to rise genuinely cost something.
+
+This is not the lesson stage 2 exists to unlearn. That was "touching the ground is death", which fired on contact and denied any chance to recover; it stays off (`agentDoneOnGroundContact` is 0 on all 16 body parts). This fires only after 600 physics steps of *failing to get back up*, and failing to get up is failure.
+
+**The general lesson: a termination condition is a specification of success, and the agent reads it far more literally than the reward.** `collapsedPostureThreshold` was written as a housekeeping parameter — cut dead episodes, save sim time — and it quietly became the definition of "good enough". Any survival cutoff does this. If a state lets the episode continue, expect the agent to find it and stay there.
 
 ## Notes on reward design and retraining
 
