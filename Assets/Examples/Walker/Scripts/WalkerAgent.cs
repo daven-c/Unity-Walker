@@ -436,7 +436,13 @@ public class WalkerAgent : Agent
         //the moment posture recovers, so an agent making progress toward standing keeps its time.
         if (collapsedStepLimit > 0)
         {
-            m_CollapsedSteps = postureReward < collapsedPostureThreshold ? m_CollapsedSteps + 1 : 0;
+            //Curriculum-ramped, because any fixed threshold becomes a target: the agent settles at
+            //the cheapest pose that clears it. At 0.2 - "off the floor" rather than "standing" - the
+            //cheapest clearing pose is a kneel, which survives the timeout forever without ever
+            //standing up. Ratcheting the bar upward as it improves is the same reverse-curriculum
+            //idea used for start tilt, applied to the success criterion instead.
+            var collapseBar = m_ResetParams.GetWithDefault("collapse_posture", collapsedPostureThreshold);
+            m_CollapsedSteps = postureReward < collapseBar ? m_CollapsedSteps + 1 : 0;
             if (m_CollapsedSteps >= collapsedStepLimit)
             {
                 m_CollapsedSteps = 0;
