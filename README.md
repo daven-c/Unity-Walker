@@ -101,9 +101,11 @@ matchSpeed × lookAtTarget × posture   +   0.1 × posture
 | `lookAtTarget` | `(dot(cubeForward, headForward_flattened) + 1) / 2` | 0–1 |
 | `posture` | `clamp01(dot(hips.up, worldUp)) × clamp01(height / standingHeight)`, where `height` is head-to-lowest-foot and `standingHeight` is captured from the authored pose in `Initialize` | 0–1 |
 
-Per **physics step**, additionally: `postureShapingWeight × (γ · postureₜ − postureₜ₋₁)` — **potential-based shaping** over posture, weight 50, γ matching `reward_signals.extrinsic.gamma`.
+Per **physics step**, additionally: `postureShapingWeight × (postureₜ − postureₜ₋₁)` — **potential-based shaping** over posture, weight 50, as a pure difference (γ = 1).
 
-The plain `0.1 × posture` term is a *level* reward: it says where the ragdoll is, not whether it's improving. A prone agent scores ~0 and keeps scoring ~0 until it's already most of the way up, so the first half of every get-up attempt is unrewarded and exploration has nothing to follow. The shaping term pays for the *change* instead, densely, from the first degree of progress. It runs negative while posture falls, so it penalizes falling as well as rewarding recovery. Being potential-based it is **policy-invariant** (Ng et al., 1999) — it cannot introduce new optima the way the additive posture bonus was once exploited by crawling — and it telescopes across an episode to roughly `k × (posture_end − posture_start)`, so it can't be farmed by oscillating.
+The plain `0.1 × posture` term is a *level* reward: it says where the ragdoll is, not whether it's improving. A prone agent scores ~0 and keeps scoring ~0 until it's already most of the way up, so the first half of every get-up attempt is unrewarded and exploration has nothing to follow. The shaping term pays for the *change* instead, densely, from the first degree of progress. It runs negative while posture falls, so it penalizes falling as well as rewarding recovery. It telescopes exactly to `k × (posture_end − posture_start)` — 0 for standing to standing, +50 for recovering, −50 for falling — so it can't be farmed by oscillating.
+
+**Use γ = 1, not the discounted Ng et al. form.** `k(γ·Φ′ − Φ)` sums over an episode to `k[(γ−1)·ΣΦ + Φ_N − Φ₀]`, and that drift is not negligible when the term is added per *physics* step: at γ = 0.995 and k = 50 it came to −0.25/step merely for being upright, against a posture reward of 0.1/step. Simulated over a full episode it scored **−999.8 for staying standing and −1,168.6 for successfully recovering** — the behavior being taught scored *worse* than never getting up. The pure difference gives up the strict policy-invariance guarantee (which assumes the discounted form) for magnitudes that mean what they should.
 
 Per **decision** (`OnActionReceived`): `− actionRatePenalty × mean(|aₜ − aₜ₋₁|)`, discouraging twitchy joint commands.
 
@@ -315,6 +317,14 @@ That pinned length is the expected consequence of removing termination, and it e
 Episode length turned out to be the informative number. At ~520 it's *below* the 735 you'd expect if only fallen starts were being cut, and solving `0.7 × L + 0.3 × 120 = 520` gives `L ≈ 690` for standing episodes. Since a fall is cut 120 decisions later, **the walker is falling around decision ~400 — roughly 8 simulated seconds.** Stage 1's policy was never a robust walker; stage 2 was compounding a shaky gait with absent recovery.
 
 Hence the potential-based shaping term (see Reward above), which targets both: dense credit for rising posture, negative while posture falls.
+
+### 11. `Walker_Stage2e` — inverted shaping, 5.4M steps wasted
+
+Episode length 432–555 across 5.4M steps, indistinguishable from Stage2d's 490–580, and reward *halved* from ~1,100 to ~500.
+
+The reward drop was the clue. The shaping used the discounted form `k(γ·Φ′ − Φ)` with γ = 0.995 — the trainer's per-*decision* discount — but added it per *physics* step, five times more often. Simulating the episode sum: **−999.8 for an episode that stays standing, −1,168.6 for one that recovers.** The term was inverted; getting up scored worse than staying down. Fixed by using the pure difference (γ = 1).
+
+The lesson generalizes past this bug: **simulate a reward term's episode sum before training on it.** Five lines of Python would have caught this ahead of an hour of GPU time. The runtime version of the same check is watching whether the reward *scale* shifts unexpectedly in the first 100k steps — a new term that changes the magnitude rather than the trend is a red flag.
 
 ## Notes on reward design and retraining
 
