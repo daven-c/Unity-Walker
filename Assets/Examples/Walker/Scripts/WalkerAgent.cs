@@ -390,12 +390,19 @@ public class WalkerAgent : Agent
         //Potential-based shaping over posture. Gives dense credit for *making progress* upward,
         //which the level-based term above cannot: prone scores ~0 and stays ~0 until the ragdoll is
         //already most of the way up, so there was nothing for exploration to follow. Runs negative
-        //while posture falls, so it penalizes falling too. Telescopes across an episode to roughly
-        //k*(posture_end - posture_start), so it can't be farmed by oscillating.
-        //gamma here must match reward_signals.extrinsic.gamma in config.yaml.
+        //while posture falls, so it penalizes falling too.
+        //
+        //This is the pure difference (gamma = 1), NOT the discounted Ng et al. form
+        //k*(gamma*phi' - phi). That form sums over an episode to k*[(gamma-1)*sum(phi) + phi_N - phi_0],
+        //and the (gamma-1)*sum(phi) drift is not small here: applied per physics step at gamma 0.995
+        //and k=50 it worked out to -0.25 per step for simply being upright, against a posture reward
+        //of 0.1 - about -1000 over a full episode. It halved Walker_Stage2e's reward and taxed
+        //standing. gamma = 1 telescopes exactly to k*(phi_end - phi_start): 0 for standing to
+        //standing, +k for recovering, -k for falling, and no per-step drift. That trades the strict
+        //policy-invariance guarantee (which assumes the discounted form) for correct magnitudes.
         if (m_HasPrevPosture)
         {
-            AddReward(postureShapingWeight * (0.995f * postureReward - m_PrevPosture));
+            AddReward(postureShapingWeight * (postureReward - m_PrevPosture));
         }
 
         m_PrevPosture = postureReward;
