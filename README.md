@@ -183,7 +183,11 @@ Three scenes, all sharing the same `WalkerRagdoll` prefab and therefore the same
    ```
    Then open the printed URL (typically `http://localhost:6006`).
 
-A completed run (`Walker_GetUp`, 15M steps, fall-recovery reward) and its trained `.onnx` model are checked into `results/` for reference/inference. `Assets/Examples/Walker/TFModels/Walker.onnx` is Unity's original stock pretrained model, still wired into the ragdoll's Behavior Parameters by default.
+Training runs live in `results/` at the repo root, **outside `Assets/`** — under `Assets/` the editor writes a `.meta` sibling for every file, including each `events.out.tfevents.*`, which breaks TensorBoard's directory watcher.
+
+The tradeoff is that Unity can't see the models there, so **`sync-models.bat`** copies each run's final `Walker.onnx` into `Assets/Examples/Walker/TFModels/<RunId>.onnx` where it can be dropped onto a Behavior Parameters component. `train.bat` calls it automatically when training finishes; run it by hand if you stopped with Ctrl+C, since answering Y to "Terminate batch job" skips the rest of the script. Re-running overwrites in place, so the `.meta` and its GUID survive and anything already referencing a model picks up the newer weights without re-assigning.
+
+Those copies are gitignored as derived duplicates — `results/` holds the canonical ones. `Assets/Examples/Walker/TFModels/Walker.onnx` is Unity's original stock pretrained model, still wired into the ragdoll's Behavior Parameters by default.
 
 ### Running a trained model
 

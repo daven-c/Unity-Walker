@@ -14,3 +14,7 @@ REM which breaks TensorBoard's directory watcher (it sorts alphabetically and la
 REM onto the .meta) and pointlessly imports 16 MB .pt checkpoints as Unity assets.
 call venv\Scripts\activate.bat
 mlagents-learn Assets\Python\config.yaml --results-dir=results %*
+
+REM Copy the finished model into Assets so Unity can see it. Note this is skipped if you stop
+REM training with Ctrl+C and answer Y to "Terminate batch job" - run sync-models.bat by hand then.
+call "%~dp0sync-models.bat"

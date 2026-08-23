@@ -2,7 +2,7 @@
     "name": "root",
     "metadata": {
         "timer_format_version": "0.1.0",
-        "start_time_seconds": "1787506445",
+        "start_time_seconds": "1787506570",
         "python_version": "3.9.13 (tags/v3.9.13:6de2ca5, May 17 2022, 16:36:42) [MSC v.1929 64 bit (AMD64)]",
         "command_line_arguments": "\\\\?\\E:\\Coding\\Git Repositories\\Unity-Walker\\venv\\Scripts\\mlagents-learn Assets\\Python\\config_getup.yaml --results-dir=results --run-id=Walker_GetupOnly --resume --torch-device=cuda",
         "mlagents_version": "0.30.0",
@@ -10,43 +10,31 @@
         "communication_protocol_version": "1.5.0",
         "pytorch_version": "1.11.0+cu113",
         "numpy_version": "1.21.2",
-        "end_time_seconds": "1787506457"
+        "end_time_seconds": "1787506631"
     },
-    "total": 12.3299097,
+    "total": 61.4524703,
     "count": 1,
-    "self": 0.007574399999999315,
+    "self": 0.006167300000001319,
     "children": {
         "run_training.setup": {
-            "total": 0.1460863000000001,
+            "total": 0.09688659999999993,
             "count": 1,
-            "self": 0.1460863000000001
+            "self": 0.09688659999999993
         },
         "TrainerController.start_learning": {
-            "total": 12.176249,
+            "total": 61.3494164,
             "count": 1,
-            "self": 0.0006272999999996642,
+            "self": 9.850000000710679e-05,
             "children": {
                 "TrainerController._reset_env": {
-                    "total": 11.2860368,
+                    "total": 61.3493005,
                     "count": 1,
-                    "self": 11.2860368
-                },
-                "trainer_threads": {
-                    "total": 1.4999999997655777e-06,
-                    "count": 1,
-                    "self": 1.4999999997655777e-06
+                    "self": 61.3493005
                 },
                 "TrainerController._save_models": {
-                    "total": 0.8895834000000011,
+                    "total": 1.7399999997280702e-05,
                     "count": 1,
-                    "self": 0.01745140000000056,
-                    "children": {
-                        "RLTrainer._checkpoint": {
-                            "total": 0.8721320000000006,
-                            "count": 1,
-                            "self": 0.8721320000000006
-                        }
-                    }
+                    "self": 1.7399999997280702e-05
                 }
             }
         }

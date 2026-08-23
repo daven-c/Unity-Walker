@@ -113,7 +113,9 @@ InitTestScene*.unity*
 /[Aa]ssets/ML-Agents/Timers/
 /[Aa]ssets/ML-Agents/Timers.meta
 
-# Scratch copies of tfevents files, made to work around Unity's .meta siblings
-# confusing TensorBoard's directory watcher. See the README Todo on moving
-# results out of Assets/.
-/tblogs/
+# Models copied into Assets by sync-models.bat so Unity can import them. The canonical copies
+# live in results/, so these are derived duplicates and not worth tracking. Walker.onnx (Unity's
+# stock model) and Walker_Stage1.onnx predate this rule and stay tracked - gitignore has no
+# effect on files already in the index, and Solo Walker references the latter by GUID.
+/[Aa]ssets/Examples/Walker/TFModels/*.onnx
+/[Aa]ssets/Examples/Walker/TFModels/*.onnx.meta
