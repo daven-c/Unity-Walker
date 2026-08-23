@@ -281,6 +281,21 @@ Two things worth reading correctly:
 
 Results also moved from `Assets/Python/results/` to a repo-root `results/` at this point, which ended the TensorBoard `.meta` errors.
 
+### 9. `Walker_Stage2` — in progress
+
+Initialized from stage 1's final checkpoint, with falls survivable and `fallenStartProbability: 0.3`.
+
+| Steps | Mean reward | Episode length |
+|---|---|---|
+| 50,000 | 1,422.0 | 999.0 |
+| 100,000 | 1,225.7 | 999.0 |
+| 150,000 | 1,344.1 | 999.0 |
+| 200,000 | 1,045.2 | 999.0 |
+
+Reward opens near stage 1's 1,435 — the walking skill transferred intact — but **episode length is pinned at exactly 999**, the cap. (TensorBoard reports episode length in *decisions*; `MaxStep: 5000` physics steps ÷ `DecisionPeriod: 5` = ~1000, so 999 means every episode is running to the limit.)
+
+That is the expected consequence of removing termination, and it exposes the next inefficiency. With no early exit, a ragdoll that falls and cannot recover spends the remainder of the episode — up to ~999 decisions, 100 simulated seconds — lying still and earning ~0. If roughly 70% of episodes start upright and score well while the fallen 30% score nothing, a mean near 1,100–1,400 is what you would expect, which matches. It also means episode length currently carries **no** information: it is constant regardless of how well recovery is going.
+
 ## Notes on reward design and retraining
 
 Generalizable lessons from the above, mostly learned the expensive way.
@@ -317,7 +332,12 @@ Rule of thumb: **`--initialize-from` when adding a skill, start fresh when remov
 
 ## Todo
 
-- **Run stage 2 once stage 1 has a competent walker** — see the two-stage curriculum above for the two prefab fields to flip and the `--initialize-from` invocation.
+- **Cut short episodes where the ragdoll is collapsed and going nowhere.** With termination disabled, a fallen agent that cannot recover burns the rest of its ~999-decision episode at ~0 reward. Capping that converts one dead episode into several fresh recovery attempts — and since `fallenStartProbability` reseeds a new pose each episode, those attempts are *more varied* than continuing to lie in one pose. It would also make `Environment/Episode Length` a live proxy for recovery success instead of a constant 999.
+
+  **Use `Agent.EpisodeInterrupted()`, not `EndEpisode()`.** The former resolves to `DoneReason.MaxStepReached`, which bootstraps the value estimate; the latter marks a true terminal state with zero future value, which would re-teach "being on the ground is death" and undo the entire point of stage 2. The ML-Agents docs are explicit that `EpisodeInterrupted` is for when "the episode could continue, but has gone on for a sufficient number of steps."
+
+  Sketch: count consecutive physics steps where `postureReward` is below a threshold (~0.2), reset that counter whenever posture recovers, and interrupt once it exceeds a tunable limit. Pick the limit generously — getting up is a multi-second maneuver, so ~600 steps (12 simulated seconds) leaves real opportunity, whereas something like 300 risks cutting attempts off before they can succeed. Both values belong on the Inspector so they can be tuned without a recompile.
+
 - **Automate the curriculum.** `m_ResetParams` in `WalkerAgent` is an assigned-but-unused `EnvironmentParameters` hook, which is exactly what ML-Agents' native curriculum system drives. Wiring `fallenStartProbability` (and a termination toggle) through it would make both stages one `mlagents-learn` job with lessons in `config.yaml`, instead of two manual runs with an Inspector edit between them.
 - **Headless parallel training** — build the project to a standalone player (File → Build) and run `mlagents-learn` against it with `--no-graphics --num-envs=N`. This is the main remaining throughput win.
 
