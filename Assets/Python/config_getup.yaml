@@ -44,6 +44,24 @@ behaviors:
 environment_parameters:
     fallen_tilt: 90
     fallen_tilt_min: 80
+    # Switch the target off. Posture is the entire reward here; there is nothing to earn by moving.
+    #
+    # Isolating the start state (fallen_tilt above) made recovery learnable, but it left the
+    # OBJECTIVE mixed and the target kept paying. Decomposing Walker_GetupOnly's final mean reward
+    # of 954 over ~4,190 physics steps per episode:
+    #
+    #   locomotion  0.170/step   74%   <- earned at ~1.8 m/s, on its knees
+    #   posture     0.052/step   23%
+    #   shaping     0.006/step    3%
+    #
+    # Gating locomotion by posture is not the same as not paying for it: a kneeler keeps 52% of a
+    # large term, which beats 100% of a small one. Standing and walking scores ~4x more per step,
+    # so this is not an inverted reward - but the rise costs all of that income up front, and the
+    # cheapest way to stay paid is to keep crawling. Same lesson as the start state, one level in.
+    #
+    # Left flat at 1.0: the target comes back when this policy is folded into the walking
+    # curriculum via --initialize-from, not partway through the get-up run.
+    posture_focus: 1.0
     # The bar the ragdoll has to clear to reset its collapse timer, ratcheted upward.
     #
     # MEASURED, over 20M steps of the un-ramped kneeling policy: Walker/Posture settles around

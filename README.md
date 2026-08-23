@@ -415,6 +415,28 @@ Which makes it a clean measurement of the un-ramped policy rather than a wasted 
 
 The weights carry over, which is the part worth keeping — rising from prone to a stable kneel is most of a get-up. Lesson 0 holds the bar at 0.2 for the first 2M steps so the seeded policy re-stabilises under the terminal cut before the bar starts moving; otherwise a regression can't be attributed between the two changes.
 
+### 16. The target was paying for the crawl
+
+Watching `Walker_Getup2`, the agent knee-walks toward the target on its hands rather than trying to rise. Decomposing the final mean reward of the run that produced that policy — 954 over ~4,190 physics steps per episode (838 decisions × decision period 5) — says why:
+
+| Term | Per physics step | Share |
+|---|---|---|
+| Locomotion (`matchSpeed × lookAt × posture`) | 0.170 | **74%** |
+| Posture level (`0.1 × posture`) | 0.052 | 23% |
+| Posture shaping (`50 × Δposture`) | 0.006 | 3% |
+
+Inverting `matchSpeedReward` puts the implied crawl at **~1.8 m/s** against a 5 m/s target. Three-quarters of this policy's income comes from chasing the target, and it collects that income without ever standing.
+
+**Gating locomotion by posture is not the same as not paying for locomotion.** The gate (§ on the worm gait) was working exactly as designed — a kneeler at posture 0.52 keeps 52% of the locomotion term — and 52% of a large term still beats 100% of a small one.
+
+To be clear about what this is and isn't: standing and walking scores ~0.99/step against knee-crawling's ~0.23, so the reward is **not** inverted, and no amount of reward-ratio arithmetic explains the behavior on its own. What the target does is make the *valley* expensive. Rising means rocking back onto the feet — forward velocity goes to zero, `matchSpeedReward` collapses to ~0, and 74% of the income stops for the duration of the attempt. If the attempt fails, the now-terminal collapse cut zeroes the rest of the episode. The cheapest way to stay paid is to keep crawling.
+
+The fix is the same move that made `Walker_GetupOnly` work, applied one level in. That run isolated the **start state** — 100% prone — and left the **objective** mixed. `posture_focus` (env parameter, 0 → 1) fades out the locomotion term and the `TouchedTarget` bonus and raises the posture coefficient 0.1 → 1.0, so at 1.0 posture is the entire reward and there is nothing to earn by moving at all. It stays flat at 1.0 for the get-up run; the target returns when this policy is folded back into the walking curriculum.
+
+Reward magnitude is sized so a full stand pays about what standing-and-walking used to. That's cosmetic — PPO normalises advantages — and it does **not** make the curve comparable to earlier runs at intermediate poses: a kneel now earns ~0.52/step against ~0.23 before, so reward jumps ~2× at unchanged behavior. **Read `Walker/Posture`, not reward, while this is on.**
+
+**The general lesson: check what fraction of the reward the unwanted behavior is actually collecting, before assuming the reward ranks it correctly.** Ranking is not the same as incentive. A term can rank the target behavior first and still fund the wrong one, because what the agent follows is the local gradient and what it defends is its current income.
+
 ## Notes on reward design and retraining
 
 Generalizable lessons from the above, mostly learned the expensive way.

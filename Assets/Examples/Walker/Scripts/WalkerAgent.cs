@@ -99,6 +99,19 @@ public class WalkerAgent : Agent
              "episode to k*(posture_end - posture_start).")]
     public float postureShapingWeight = 50f;
 
+    [Range(0f, 1f)]
+    [Tooltip("Blends the objective from 'chase the target' (0) toward 'just stand up' (1). At 1 the " +
+             "locomotion term and the touch bonus are switched off entirely and posture is the whole " +
+             "reward, so there is nothing to earn by crawling.\n\n" +
+             "Isolating the START STATE (100% prone) is what made recovery learnable at all, but it " +
+             "left the OBJECTIVE mixed, and the target kept paying: at 20M steps the locomotion term " +
+             "was 74% of a knee-crawler's income against posture's 23%. Standing still scores better " +
+             "per step, but only after a rise that costs all of that income up front - and the " +
+             "cheapest way to stay paid is to keep crawling. This isolates the objective too.\n\n" +
+             "Kept at 0 by default so the walking configs are unchanged. Overridden by the " +
+             "'posture_focus' environment parameter, so the target can be faded back in.")]
+    public float postureFocus;
+
     //Previous step's posture, for the shaping term. Null-state tracked separately so the first
     //step of an episode isn't charged a bogus delta against the previous episode's final pose.
     float m_PrevPosture;
@@ -106,6 +119,10 @@ public class WalkerAgent : Agent
 
     //Consecutive physics steps spent below collapsedPostureThreshold.
     int m_CollapsedSteps;
+
+    //postureFocus for the current episode. Latched at OnEpisodeBegin rather than read per step so
+    //the objective can't shift under the agent mid-episode when a curriculum lesson advances.
+    float m_PostureFocus;
 
     [Header("Motion Smoothness")]
     [Range(0f, 0.5f)]
@@ -180,6 +197,7 @@ public class WalkerAgent : Agent
         m_PrevActions = null;
         m_CollapsedSteps = 0;
         m_HasPrevPosture = false;
+        m_PostureFocus = Mathf.Clamp01(m_ResetParams.GetWithDefault("posture_focus", postureFocus));
 
         //Random start rotation to help generalize
         var yaw = Random.Range(0.0f, 360.0f);
@@ -403,7 +421,21 @@ public class WalkerAgent : Agent
 
         //The standalone posture term is what gives a fallen agent a gradient to stand back up,
         //since the gated locomotion term is ~0 until it does.
-        AddReward(matchSpeedReward * lookAtTargetReward * postureReward + 0.1f * postureReward);
+        //
+        //postureFocus fades the locomotion half out and the posture half up, because gating the
+        //locomotion reward by posture is NOT the same as not paying for locomotion. A kneeling
+        //crawler keeps 52% of the locomotion term, and 52% of a large number beat 100% of a small
+        //one: measured at 20M steps the split was 74% locomotion / 23% posture / 3% shaping, earned
+        //at ~1.8 m/s on its knees. The gate was doing its job and the agent was still misaligned.
+        //
+        //The posture coefficient rises 0.1 -> 1.0 alongside, sized so a full stand still pays about
+        //what standing-and-walking used to (~0.9/step). That is cosmetic for PPO, which normalises
+        //advantages. It does NOT make the curve comparable to earlier runs at intermediate poses:
+        //at focus 1 a kneel earns ~0.52/step against ~0.23 before, so reward can rise while the
+        //behaviour is unchanged. Read Walker/Posture, not reward, when this is on.
+        var locomotionReward = matchSpeedReward * lookAtTargetReward * postureReward;
+        AddReward((1f - m_PostureFocus) * locomotionReward
+                  + (0.1f + 0.9f * m_PostureFocus) * postureReward);
 
         //Potential-based shaping over posture. Gives dense credit for *making progress* upward,
         //which the level-based term above cannot: prone scores ~0 and stays ~0 until the ragdoll is
@@ -504,6 +536,8 @@ public class WalkerAgent : Agent
     /// </summary>
     public void TouchedTarget()
     {
-        AddReward(1f);
+        //Faded out with the rest of the locomotion objective. Small next to the per-step terms, but
+        //it is the one reward a crawler can collect repeatedly without ever standing up.
+        AddReward(1f - m_PostureFocus);
     }
 }
