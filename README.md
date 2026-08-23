@@ -477,6 +477,25 @@ Uniform in *tilt* is not uniform in *difficulty* — posture falls off as ~cos²
 
 This is also the curriculum `GetupOnly` deleted, and it failed the first time because walking diluted it to ~15% get-up practice. `posture_focus` is exactly what removes that dilution, so **the reason it failed is gone.** The difference now is that mixing difficulty is not the same as mixing *objectives*: prone and standing starts are the same task at different distances from the goal, whereas walking and recovering were two tasks competing for the same buffer.
 
+### 18. The mechanism that was supposed to fix this had never run
+
+Four runs and ~22M steps after the collapse ratchet was written, `Environment/Lesson Number/collapse_posture` had never left **0**.
+
+The ramp ran `0.2 → 0.35 → 0.5 → 0.6 → 0.7` gated on `progress` thresholds of 0.10 / 0.25 / 0.45 / 0.65 — of a **20M-step run**. Lesson 0 therefore lasted 2M steps. `Getup3` was stopped at 300k. `Getup4` was still at 1.35M. And `--initialize-from` resets the step counter, so **every restart replayed lesson 0 from the beginning.** The whole time, the bar sat at 0.2, which a kneel clears forever — the exact bug the ratchet was built to remove.
+
+The thresholds were written for one uninterrupted 20M-step run. The actual workflow is restarts every ~1M steps as diagnosis improves. **Design for the workflow you have, not the one the config format implies** — `measure: progress` quietly assumes runs go to completion, and this one never does.
+
+Fixing it exposed a second thing I'd had backwards. Kneeling scores ~0.52/step and standing ~0.9, which reads as a 1.7× preference for standing. But that ratio only holds because *a kneeler survives exactly as long as a stander* — when episode lengths match, per-step and per-episode ratios are the same number. Make the kneel terminal and the comparison changes shape:
+
+| Outcome | Return |
+|---|---|
+| Kneel, cut at 600 physics steps | 600 × 0.52 = **312** |
+| Stand, survives to `MaxStep` | 4,995 × 0.90 = **4,495** |
+
+**~14×, not 1.7×.** A termination condition moves total return by an order of magnitude more than any reward coefficient I'd been tuning. Same lesson as "termination conditions are part of the reward function" from the worm-gait era, pointed the other way: back then a termination was *creating* a behavior, here its absence was *funding* one.
+
+So the ramp is now two lessons instead of five, and the first lasts 500k steps rather than 2M. 0.45 clears a clean kneel but not a slumped crawl. 0.65 clears no kneel at all. With tilt uniform over [0, 90], about a third of episodes already start above 0.65, and those carry the signal that matters most: *you began upright, and collapsing now ends the episode.*
+
 One honest note on the rescale in §16: raising the posture coefficient 0.1 → 1.0 also cut the shaping term's *relative* weight from ~11% of posture reward to ~1%, diluting the one term that pays for the transition itself. Left alone for now — the level term at 10× does most of what shaping was compensating for, and this run already has enough moving parts — but it's a knob to revisit before adding new ones.
 
 ## Notes on reward design and retraining

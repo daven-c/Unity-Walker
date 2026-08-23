@@ -118,42 +118,44 @@ environment_parameters:
     # lesson matches the resumed step. Lesson 0 is unchanged at 0.2 so the first 2M steps
     # re-stabilise the seeded policy under the new terminal cut before the bar moves at all -
     # otherwise a regression is unattributable between the two changes.
+    # The bar posture must clear to reset the collapse timer. RATCHETS FAST, and that is the fix.
+    #
+    # This ramp used to run 0.2 -> 0.35 -> 0.5 -> 0.6 -> 0.7 over progress 0.10/0.25/0.45/0.65 of a
+    # 20M-step run. It never once fired. Every run so far was stopped or restarted well inside
+    # lesson 0 - Getup3 died at 300k, Getup4 was still at 1.35M - and --initialize-from resets
+    # progress to 0, so lesson 0 replayed from scratch every time. Four runs, ~22M steps, and the
+    # mechanism built to make kneeling fatal spent all of it inert at 0.2, which a kneel clears
+    # forever. The thresholds were written for one uninterrupted 20M run; the actual workflow is
+    # restarts every ~1M steps. Design for the workflow you have.
+    #
+    # Why termination is the strong lever here, and per-step reward is not. Kneeling scores 0.52
+    # per step and standing ~0.9, which sounds like a 1.7x preference - but ONLY because a kneeler
+    # survives just as long as a stander, so per-step and per-episode ratios are identical. Make
+    # the kneel terminal and the comparison changes shape entirely:
+    #
+    #   kneel, cut at 600 physics steps   600 x 0.52  =   312
+    #   stand, survives to MaxStep       4995 x 0.90  = 4,495   ->  ~14x, not 1.7x
+    #
+    # A termination condition moves total return by an order of magnitude more than a reward
+    # coefficient can, which is the same lesson as "termination conditions are part of the reward
+    # function" from the worm-gait era, pointed the other way.
+    #
+    # Two lessons, not five, and the first is 500k steps rather than 2M. 0.45 clears a clean kneel
+    # but not a slumped crawl, so there is pressure from the start; 0.65 clears no kneel at all.
+    # With tilt uniform over [0,90], ~a third of episodes already start above 0.65, and those carry
+    # the signal that matters most: you began upright, and collapsing now ends the episode.
     collapse_posture:
         curriculum:
-            - name: Kneel # 0.2, unchanged. A kneel clears this forever; that is the bug.
+            - name: Rise # a clean kneel clears it, a slumped crawl does not
               completion_criteria:
                   measure: progress
                   behavior: Walker
                   signal_smoothing: true
-                  min_lesson_length: 500
-                  threshold: 0.10
-              value: 0.2
-            - name: GoodKneel # a sloppy half-collapsed kneel stops counting; a clean upright one still does
-              completion_criteria:
-                  measure: progress
-                  behavior: Walker
-                  signal_smoothing: true
-                  min_lesson_length: 500
-                  threshold: 0.25
-              value: 0.35
-            - name: AtCeiling # right at the measured mean - marginal even for a good kneel
-              completion_criteria:
-                  measure: progress
-                  behavior: Walker
-                  signal_smoothing: true
-                  min_lesson_length: 500
-                  threshold: 0.45
-              value: 0.5
-            - name: PastKneel # above any kneel: has to come up off the shins onto the feet
-              completion_criteria:
-                  measure: progress
-                  behavior: Walker
-                  signal_smoothing: true
-                  min_lesson_length: 500
-                  threshold: 0.65
-              value: 0.6
-            - name: Stand # a real stand, with slack for lean and bent knees. Not 1.0: nothing holds 1.0.
-              value: 0.7
+                  min_lesson_length: 100
+                  threshold: 0.025
+              value: 0.45
+            - name: Stand # no kneel clears this. Slack left below 0.7 for lean and bent knees.
+              value: 0.65
 engine_settings:
     # Simulated seconds per real second. Measured from Walker_timers.json: 450,013 physics
     # steps in 1,625 s = 277/sec, and at fixedDeltaTime 0.02 that is an *effective* 5.5x.
