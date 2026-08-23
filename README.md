@@ -461,9 +461,21 @@ Three flat columns is the finding. Posture varies by ±0.006 and entropy by ±0.
 
 The diagnosis: standing already pays ~2× kneeling per step, so the incentive is not missing. What's missing is that **this policy has never been upright.** Nothing in 20M steps of experience tells it what upright feels like or how to hold it, and the rise is a multi-second coordinated maneuver that undirected action noise will never stumble into. Raising `beta` would inject more noise into 39 joint targets; more noise does not assemble a coordinated motion.
 
-So the fix is **structured exploration instead: start the episode in states the policy cannot reach on its own.** `fallen_tilt` becomes a reverse curriculum — `[0,30] → [15,55] → [35,78] → [60,90]` — so lesson 0 starts it near-upright where the entire task is "don't collapse to the kneel", and the start pose then ramps backward until it's prone again. Teach the last part of the skill first, then extend backward toward the hard start.
+So the fix is **structured exploration instead: start the episode in states the policy cannot reach on its own.** `fallen_tilt` samples uniformly over `[0, 90]` every episode — prone, half-down and standing all in the same buffer, every buffer.
 
-This is the curriculum `GetupOnly` deleted. It failed the first time because walking diluted it to ~15% get-up practice — and `posture_focus` is exactly what removes that dilution. **The reason it failed is gone, so the idea is worth having back.** Each lesson also spans a wide range rather than a single tilt, so easy poses stay in the data and balance isn't forgotten while prone is relearned.
+**How that helps is not the obvious story, and the difference matters.** The intuitive version is that the standing agents score higher and the crawlers see it and copy. They can't: all 40 walkers share one network and pool experience into one buffer, and nothing in PPO lets one agent observe another's return. There is no imitation and no comparison.
+
+The route is the **critic**. Standing episodes teach `V()` that high-posture states are worth a lot. Once `V(upright) >> V(kneel)`, an action taken from a kneel that raises posture earns positive *advantage* — it moves toward a state the critic now values — even though its immediate reward barely changed. **The value function is what carries "there's something better over here" back to the states the crawler is actually in.** That's also why level reward alone wasn't enough: advantage is measured against the critic's prediction for that state, so a stander collecting a high reward the critic already expects produces no gradient at all.
+
+Which is why this is a **mix rather than a reverse curriculum** ramping 30 → 90, and worth being concrete about:
+
+1. **The critic needs both ends present at once.** A lesson containing only easy starts teaches `V(upright)` but has no kneel states to apply it to. The useful contrast is within-buffer.
+2. **Rising from prone took 20M steps and is the one asset here.** A lesson 0 with no prone starts spends millions of steps not practising it — catastrophic forgetting on exactly the skill worth keeping.
+3. **Thresholds are a moving part, and this project's have been miscalibrated three times** (`measure: reward` gaming, a cliff instead of a ramp, thresholds written against the wrong step). Uniform sampling has nothing to calibrate.
+
+Uniform in *tilt* is not uniform in *difficulty* — posture falls off as ~cos²(tilt), so `[0,30]` is the easy third and `[60,90]` the hard third. That spread is the point.
+
+This is also the curriculum `GetupOnly` deleted, and it failed the first time because walking diluted it to ~15% get-up practice. `posture_focus` is exactly what removes that dilution, so **the reason it failed is gone.** The difference now is that mixing difficulty is not the same as mixing *objectives*: prone and standing starts are the same task at different distances from the goal, whereas walking and recovering were two tasks competing for the same buffer.
 
 One honest note on the rescale in §16: raising the posture coefficient 0.1 → 1.0 also cut the shaping term's *relative* weight from ~11% of posture reward to ~1%, diluting the one term that pays for the transition itself. Left alone for now — the level term at 10× does most of what shaping was compensating for, and this run already has enough moving parts — but it's a knob to revisit before adding new ones.
 
