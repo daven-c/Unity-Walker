@@ -4,7 +4,12 @@ behaviors:
         hyperparameters:
             batch_size: 2048
             buffer_size: 20480
-            learning_rate: 0.0003
+            # 1e-4, not the 3e-4 used for from-scratch runs. This config only ever runs as a
+            # fine-tune of an existing policy, and Getup6 showed how fast a full-strength LR
+            # erases a seeded skill when the buffer is mostly failure: Stage1's standing was
+            # gone inside 100k steps. Lower LR trades adaptation speed for keeping the thing
+            # the seed was chosen for.
+            learning_rate: 0.0001
             beta: 0.005
             epsilon: 0.2
             lambd: 0.95
@@ -42,42 +47,57 @@ behaviors:
 # kneel (mean reward 954, episode length ~838 against a no-recovery floor of 120). No demonstrations
 # needed. The remaining problem is not "can't get up", it is "stops halfway" - see collapse_posture.
 environment_parameters:
-    # Every episode samples start tilt UNIFORMLY over the full range - prone, half-down and
-    # standing all in the same buffer, every buffer. No curriculum on the start pose.
+    # Reverse curriculum on start tilt, with the EASY end always present.
     #
-    # Walker_Getup3 showed the flat-90 start is an exploration dead end: seeded from the 20M
-    # kneeler with the target off, posture sat at 0.511-0.523 and entropy at 0.671-0.672 for 300k
-    # steps. Not slow learning - a converged policy with no gradient it can act on. Level reward
-    # already pays ~2x more for standing than kneeling, so the incentive is not missing. What is
-    # missing is that this policy has NEVER BEEN UPRIGHT: nothing in its experience says what
-    # upright feels like or that it is worth anything.
+    # This was uniform [0,90] for the Getup4/5 runs, on the argument that mixing beats ramping: a
+    # kneeler seed needs standing states in the buffer for the critic to learn they are worth
+    # anything, and a lesson containing only easy starts has no kneel states to apply that to.
+    # That argument was correct FOR A KNEELER SEED, and it inverts for a standing seed.
     #
-    # Undirected exploration cannot fix that - raising beta injects noise into 39 joint targets and
-    # noise does not assemble a coordinated rise. Starting some episodes already upright can: it
-    # puts states into the buffer that the policy cannot reach on its own.
+    # Getup6 seeded from Walker_Stage1 - 15M steps where falling was terminal, so a policy that can
+    # only stand - and uniform [0,90] destroyed it in under 100k steps:
     #
-    # HOW that actually helps, because the obvious story is wrong. Agents do not observe each
-    # other. All 40 share one network and pool experience into one buffer; a crawler cannot see a
-    # stander scoring better and imitate it. The route is the CRITIC. Standing episodes teach V()
-    # that high-posture states are worth a lot. Once V(upright) >> V(kneel), an action from a kneel
-    # that raises posture gets positive advantage - it moves toward a state the critic now values -
-    # even though its immediate reward barely changed. The value function is what carries "there is
-    # something better over here" back to states the crawler is actually in.
+    #     step     posture   peak   upright
+    #      50k       0.088  0.291     0.094
+    #     100k       0.041  0.212     0.011   <- standing skill gone
     #
-    # Which is also why this is mixed rather than a reverse curriculum ramping 30 -> 90. Three
-    # reasons the mix wins:
-    #   1. The critic needs BOTH ends present at once. A lesson containing only easy starts teaches
-    #      V(upright) but has no kneel states to apply it to; the useful contrast is within-buffer.
-    #   2. Rising from prone took 20M steps to learn and is the one asset here. A lesson 0 with no
-    #      prone starts spends millions of steps not practising it - catastrophic forgetting risk
-    #      on exactly the skill worth keeping.
-    #   3. Thresholds are a moving part, and this project's curricula have been miscalibrated three
-    #      times (measure: reward gaming, a cliff instead of a ramp, thresholds written against the
-    #      wrong step). Uniform sampling has nothing to calibrate.
+    # Two thirds of episodes started at a tilt Stage1 has never seen, it had no recovery policy for
+    # any of them, and the collapse cut ended nearly every episode at the 120-decision floor. The
+    # buffer was almost pure failure, and at learning_rate 3e-4 that overwrote the one skill the
+    # seed existed to provide. A firehose of out-of-distribution starts is not a curriculum.
     #
-    # Note that uniform in TILT is not uniform in difficulty - posture falls off as ~cos^2(tilt),
-    # so [0,30] is the easy third, [60,90] the hard third. That spread is the point.
-    fallen_tilt: 90
+    # So: ramp the HARD end while pinning the easy end at 0. fallen_tilt_min stays 0 for the whole
+    # run, so near-upright starts never leave the data and standing is continuously rehearsed even
+    # at the last lesson. That is the piece the previous reverse curriculum got wrong - it ramped
+    # min up to 60 and stopped practising the skill it had just taught.
+    fallen_tilt:
+        curriculum:
+            - name: Lean # [0,15] - inside what Stage1 already handles. Should barely fall at all.
+              completion_criteria:
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 200
+                  threshold: 0.05
+              value: 15
+            - name: Stumble # [0,35] - starts to lose it, still recoverable by leg action alone
+              completion_criteria:
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 200
+                  threshold: 0.15
+              value: 35
+            - name: Toppled # [0,60] - past the point posture drops under the collapse bar
+              completion_criteria:
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 200
+                  threshold: 0.30
+              value: 60
+            - name: Prone # [0,90] - the full get-up, with a third of episodes still easy
+              value: 90
     fallen_tilt_min: 0
     # Switch the target off. Posture is the entire reward here; there is nothing to earn by moving.
     #
