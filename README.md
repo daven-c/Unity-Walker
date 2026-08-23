@@ -101,6 +101,10 @@ matchSpeed × lookAtTarget × posture   +   0.1 × posture
 | `lookAtTarget` | `(dot(cubeForward, headForward_flattened) + 1) / 2` | 0–1 |
 | `posture` | `clamp01(dot(hips.up, worldUp)) × clamp01(height / standingHeight)`, where `height` is head-to-lowest-foot and `standingHeight` is captured from the authored pose in `Initialize` | 0–1 |
 
+Per **physics step**, additionally: `postureShapingWeight × (γ · postureₜ − postureₜ₋₁)` — **potential-based shaping** over posture, weight 50, γ matching `reward_signals.extrinsic.gamma`.
+
+The plain `0.1 × posture` term is a *level* reward: it says where the ragdoll is, not whether it's improving. A prone agent scores ~0 and keeps scoring ~0 until it's already most of the way up, so the first half of every get-up attempt is unrewarded and exploration has nothing to follow. The shaping term pays for the *change* instead, densely, from the first degree of progress. It runs negative while posture falls, so it penalizes falling as well as rewarding recovery. Being potential-based it is **policy-invariant** (Ng et al., 1999) — it cannot introduce new optima the way the additive posture bonus was once exploited by crawling — and it telescopes across an episode to roughly `k × (posture_end − posture_start)`, so it can't be farmed by oscillating.
+
 Per **decision** (`OnActionReceived`): `− actionRatePenalty × mean(|aₜ − aₜ₋₁|)`, discouraging twitchy joint commands.
 
 On **target contact**: `+1` (`TouchedTarget`).
@@ -301,6 +305,16 @@ Reward opens near stage 1's 1,435 — the walking skill transferred intact — b
 **Fix applied:** a collapsed-episode timeout (see Termination above). Rather than let a hopeless episode run its full ~999 decisions, it is interrupted after 600 collapsed steps — trading one long look at a single failed pose for several fresh attempts, since every new episode reseeds a different fallen pose. It also restores episode length as a live proxy for recovery success.
 
 That pinned length is the expected consequence of removing termination, and it exposes the next inefficiency. With no early exit, a ragdoll that falls and cannot recover spends the remainder of the episode — up to ~999 decisions, 100 simulated seconds — lying still and earning ~0. If roughly 70% of episodes start upright and score well while the fallen 30% score nothing, a mean near 1,100–1,400 is what you would expect, which matches. It also means episode length currently carries **no** information: it is constant regardless of how well recovery is going.
+
+### 10. `Walker_Stage2c` / `Walker_Stage2d` — curriculum tuning
+
+**`Stage2c` exposed a calibration bug.** The `fallen_tilt` curriculum reached lesson 2 (Prone, 90°) within 250k steps and then flatlined at episode length ~575, reward ~1,150. Mean reward is roughly `W × (0.7 + 0.3p)` for `W` a well-walked episode and `p` the recovery rate — so with 30% fallen starts, a walker that *never* recovers still banks ~0.7W ≈ 1,200. The 1,100 threshold was below that, so inherited walking skill alone advanced the curriculum. `min_lesson_length: 100` compounded it: at 40 agents that many episodes complete inside one summary window. Raised to 1,450/1,500 and 500.
+
+**`Stage2d` fixed the advancing but not the learning.** Lesson correctly held at 0 (30° tilt) for the full 1.5M steps, but episode length sat flat at 490–580 and reward drifted *down* from ~1,230 to ~950. Entropy held at 0.9, so this wasn't policy collapse — it simply wasn't learning.
+
+Episode length turned out to be the informative number. At ~520 it's *below* the 735 you'd expect if only fallen starts were being cut, and solving `0.7 × L + 0.3 × 120 = 520` gives `L ≈ 690` for standing episodes. Since a fall is cut 120 decisions later, **the walker is falling around decision ~400 — roughly 8 simulated seconds.** Stage 1's policy was never a robust walker; stage 2 was compounding a shaky gait with absent recovery.
+
+Hence the potential-based shaping term (see Reward above), which targets both: dense credit for rising posture, negative while posture falls.
 
 ## Notes on reward design and retraining
 

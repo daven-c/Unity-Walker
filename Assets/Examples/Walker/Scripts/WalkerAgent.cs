@@ -79,6 +79,20 @@ public class WalkerAgent : Agent
              "a curriculum rather than always training the hardest case.")]
     public float fallenStartTilt = 30f;
 
+    [Tooltip("Weight on potential-based shaping over posture: k * (gamma*posture_t - posture_t-1). " +
+             "The plain posture term is a LEVEL reward - it says where you are, not whether you're " +
+             "improving - so the first half of a get-up earns nothing and there's no gradient to " +
+             "follow. This pays for the change instead, densely, the moment posture starts rising. " +
+             "It also runs negative while posture falls, so it discourages falling as well. " +
+             "Potential-based shaping is policy-invariant (Ng et al. 1999): it cannot create new " +
+             "optima the way the additive posture bonus was once gamed by crawling.")]
+    public float postureShapingWeight = 50f;
+
+    //Previous step's posture, for the shaping term. Null-state tracked separately so the first
+    //step of an episode isn't charged a bogus delta against the previous episode's final pose.
+    float m_PrevPosture;
+    bool m_HasPrevPosture;
+
     //Consecutive physics steps spent below collapsedPostureThreshold.
     int m_CollapsedSteps;
 
@@ -154,6 +168,7 @@ public class WalkerAgent : Agent
         //action-rate penalty for the discontinuity across the episode boundary.
         m_PrevActions = null;
         m_CollapsedSteps = 0;
+        m_HasPrevPosture = false;
 
         //Random start rotation to help generalize
         var yaw = Random.Range(0.0f, 360.0f);
@@ -371,6 +386,20 @@ public class WalkerAgent : Agent
         //The standalone posture term is what gives a fallen agent a gradient to stand back up,
         //since the gated locomotion term is ~0 until it does.
         AddReward(matchSpeedReward * lookAtTargetReward * postureReward + 0.1f * postureReward);
+
+        //Potential-based shaping over posture. Gives dense credit for *making progress* upward,
+        //which the level-based term above cannot: prone scores ~0 and stays ~0 until the ragdoll is
+        //already most of the way up, so there was nothing for exploration to follow. Runs negative
+        //while posture falls, so it penalizes falling too. Telescopes across an episode to roughly
+        //k*(posture_end - posture_start), so it can't be farmed by oscillating.
+        //gamma here must match reward_signals.extrinsic.gamma in config.yaml.
+        if (m_HasPrevPosture)
+        {
+            AddReward(postureShapingWeight * (0.995f * postureReward - m_PrevPosture));
+        }
+
+        m_PrevPosture = postureReward;
+        m_HasPrevPosture = true;
 
         //Cut the episode short if the ragdoll has been collapsed for too long. The counter resets
         //the moment posture recovers, so an agent making progress toward standing keeps its time.

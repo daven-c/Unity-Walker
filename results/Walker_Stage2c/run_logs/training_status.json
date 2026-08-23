@@ -1,0 +1,50 @@
+{
+    "fallen_tilt": {
+        "lesson_num": 2
+    },
+    "Walker": {
+        "checkpoints": [
+            {
+                "steps": 499354,
+                "file_path": "results\\Walker_Stage2c\\Walker\\Walker-499354.onnx",
+                "reward": 1427.5928054749966,
+                "creation_time": 1787458098.296282,
+                "auxillary_file_paths": [
+                    "results\\Walker_Stage2c\\Walker\\Walker-499354.pt"
+                ]
+            },
+            {
+                "steps": 999892,
+                "file_path": "results\\Walker_Stage2c\\Walker\\Walker-999892.onnx",
+                "reward": 1099.2860475536436,
+                "creation_time": 1787458468.2007415,
+                "auxillary_file_paths": [
+                    "results\\Walker_Stage2c\\Walker\\Walker-999892.pt"
+                ]
+            },
+            {
+                "steps": 1150090,
+                "file_path": "results\\Walker_Stage2c\\Walker\\Walker-1150090.onnx",
+                "reward": 746.0024414355385,
+                "creation_time": 1787458570.2348738,
+                "auxillary_file_paths": [
+                    "results\\Walker_Stage2c\\Walker\\Walker-1150090.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 1150090,
+            "file_path": "results\\Walker_Stage2c\\Walker.onnx",
+            "reward": 746.0024414355385,
+            "creation_time": 1787458570.2348738,
+            "auxillary_file_paths": [
+                "results\\Walker_Stage2c\\Walker\\Walker-1150090.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "0.30.0",
+        "torch_version": "1.11.0+cu113"
+    }
+}
