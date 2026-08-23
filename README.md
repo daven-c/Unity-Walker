@@ -344,6 +344,24 @@ Because the curriculum starved it. Lesson 0 → 1 came at **12.90M**, 1 → 2 at
 
 **Reward is the wrong thing to gate a curriculum on here, in both directions.** At threshold 1,100 (Stage2c) it skipped to the hardest lesson in 250k steps, because a walker that never recovers still banks ~0.7W. At 1,450 it took 13M steps to clear the first lesson, because reward mostly tracks gait quality and improving the gait is what eventually crossed the bar. Reward cannot separate "walks well" from "recovers well", and ML-Agents only offers `reward` or `progress` as measures — so the curriculum now gates on **progress**, giving each lesson a guaranteed budget: 4.5M / 6M / 19.5M against a raised 30M `max_steps`.
 
+### 13. `Walker_GetupOnly` — 6M steps, recovery finally happens
+
+Every episode starts near-prone (80–90°), so 100% of experience is get-up practice against ~15% under the graduated curriculum. With `collapsedStepLimit` at 600 physics steps, an agent that never rises is cut at **120 decisions** — that's the floor, and it makes episode length an unambiguous readout.
+
+| Phase | Episode length | Reward | Entropy |
+|---|---|---|---|
+| 50k–1.2M | 258 | 17 | 0.85 |
+| 1.25–2.4M | 561 | 77 | 0.82 |
+| 2.45–3.6M | 662 | 135 | 0.80 |
+| 3.65–4.8M | 752 | 188 | 0.78 |
+| 4.85–6M | **838** | **249** | 0.77 |
+
+Episode length climbed to 838 against a floor of 120, max 978. After five runs that produced nothing, **recovery is learnable from this reward** — the blocker was never the reward shape or the mechanics, it was that get-up practice was diluted to a fraction of each run.
+
+**The lesson: when a behavior won't emerge, check how much of the data actually contains it** before rewriting the reward. Across Stage2b–2f the agent was spending 85–99% of its experience on walking while the target behavior was recovery. Isolating the skill did in ~90 minutes what five multi-hour runs of reward and curriculum tuning could not.
+
+Caveat on where it got to: reward of 249 over an 838-decision episode is ~0.06/physics step, which back-solves to posture ≈ 0.3, i.e. ~57° from vertical. That is a propped or kneeling pose — clear of the 0.2 collapse threshold but short of standing. It may have learned to escape *collapsed* rather than to reach *upright*, which would match the "pushup with knees down" seen in earlier runs. Reward was still climbing at the 6M budget.
+
 ## Notes on reward design and retraining
 
 Generalizable lessons from the above, mostly learned the expensive way.

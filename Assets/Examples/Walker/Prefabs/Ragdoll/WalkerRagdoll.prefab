@@ -2514,6 +2514,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 577
   m_ObservationStacks: 1
+  m_AlternatingRayOrder: 1
+  m_UseBatchedRaycasts: 0
   rayHitColor: {r: 1, g: 0, b: 0, a: 1}
   rayMissColor: {r: 1, g: 1, b: 1, a: 1}
   m_StartVerticalOffset: 0
@@ -2663,6 +2665,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 577
   m_ObservationStacks: 1
+  m_AlternatingRayOrder: 1
+  m_UseBatchedRaycasts: 0
   rayHitColor: {r: 1, g: 0, b: 0, a: 1}
   rayMissColor: {r: 1, g: 1, b: 1, a: 1}
   m_StartVerticalOffset: 0
@@ -2722,6 +2726,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 577
   m_ObservationStacks: 1
+  m_AlternatingRayOrder: 1
+  m_UseBatchedRaycasts: 0
   rayHitColor: {r: 1, g: 0, b: 0, a: 1}
   rayMissColor: {r: 1, g: 1, b: 1, a: 1}
   m_StartVerticalOffset: 0
@@ -2814,6 +2820,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 577
   m_ObservationStacks: 1
+  m_AlternatingRayOrder: 1
+  m_UseBatchedRaycasts: 0
   rayHitColor: {r: 1, g: 0, b: 0, a: 1}
   rayMissColor: {r: 1, g: 1, b: 1, a: 1}
   m_StartVerticalOffset: 0
@@ -3903,6 +3911,7 @@ MonoBehaviour:
   TeamId: 0
   m_UseChildSensors: 1
   m_UseChildActuators: 1
+  m_DeterministicInference: 0
   m_ObservableAttributeHandling: 0
 --- !u!114 &3599283675615088295
 MonoBehaviour:
@@ -3940,7 +3949,12 @@ MonoBehaviour:
   forearmR: {fileID: 3030305163938599519}
   handR: {fileID: 5846586345213991904}
   Inference: 0
-  fallenStartProbability: 0.3
+  fallenStartProbability: 1
+  collapsedStepLimit: 600
+  collapsedPostureThreshold: 0.2
+  fallenStartTilt: 30
+  fallenStartMinTilt: 0
+  postureShapingWeight: 50
   actionRatePenalty: 0.05
 --- !u!114 &3599283675615088288
 MonoBehaviour:
@@ -3971,6 +3985,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   DecisionPeriod: 5
+  DecisionStep: 0
   TakeActionsBetweenDecisions: 0
 --- !u!1 &4677568880406971097
 GameObject:

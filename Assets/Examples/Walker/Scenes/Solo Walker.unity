@@ -701,7 +701,7 @@ PrefabInstance:
     - target: {fileID: 654595229, guid: 84359146bf7af47e58c229d877e801d7, type: 3}
       propertyPath: m_Model
       value: 
-      objectReference: {fileID: 5022602860645237092, guid: 09ef3b79d87231b46acfffea0e2afadd, type: 3}
+      objectReference: {fileID: 5022602860645237092, guid: 150da528a5eacf74baa231d64c1d9f87, type: 3}
     - target: {fileID: 654595229, guid: 84359146bf7af47e58c229d877e801d7, type: 3}
       propertyPath: m_BehaviorType
       value: 0
