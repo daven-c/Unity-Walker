@@ -17,6 +17,29 @@ lives in the README; this is the plan, the evidence it rests on, and the rules f
 | F8 | Flat entropy is a reliable "policy is static" detector. | Frozen at 0.671 (`Getup3`) and 0.812 (`Getup5`) through long stuck stretches; rising 0.673 → 0.731 while `Getup4` was genuinely moving. |
 | F9 | Mean posture is confounded by episode length. | Every episode opens with a low-posture transient, so shorter episodes drag the mean down at unchanged behaviour. Cost two misreadings. `PeakPosture` and `TimeUpright` are not confounded. |
 | F10 | `measure: progress` curricula do not survive restarts. | `--initialize-from` resets the step counter, so lesson 0 replayed every run. The collapse ratchet sat inert for four runs and ~22M steps. |
+| F11 | **`fallen_tilt` never controlled difficulty.** | `Quaternion.Euler(pitch, yaw, Random.Range(0f, 360f))` — the third argument is roll, sampled over the full circle *regardless of pitch*. "Tilt 0" meant upright pitch with uniformly random roll: on its side or fully inverted about as often as standing. Found by E0, fixed. |
+
+### What F11 invalidates
+
+Every tilt curriculum in this project. Lessons differed only in pitch while roll stayed fully
+random, so no lesson was ever meaningfully easier than another — which is exactly why widening and
+narrowing the range across five runs changed nothing. It also explains, without any appeal to
+learning dynamics:
+
+- **Why `Getup6` collapsed in under 100k steps.** A `Stage1` seed was never handed a pose it could
+  stand from. Not catastrophic forgetting from a failure-dominated buffer — the buffer was
+  failure-dominated because the task was impossible.
+- **Why `GetupOnly` plateaued at a kneel.** From a uniformly random orientation, a kneel is a
+  sensible universal intermediate. It was the right answer to the task actually posed.
+- **Why the `cos²(tilt)` posture model kept mispredicting thresholds.** It assumed the tilt was the
+  whole rotation.
+
+The fix tips by `pitch` about a random **horizontal** axis — magnitude from the curriculum,
+direction random — so `dot(hips.up, worldUp)` is now exactly `cos(pitch)` (verified numerically to
+0 error) and start posture is `cos(pitch) × height ratio`. The model used for calibration is now
+true rather than assumed.
+
+**E0 must be re-run.** Its results below measured the broken start distribution.
 
 ## The structural flaw in every run so far
 

@@ -255,7 +255,23 @@ public class WalkerAgent : Agent
             var tilt = m_ResetParams.GetWithDefault("fallen_tilt", fallenStartTilt);
             var minTilt = Mathf.Min(m_ResetParams.GetWithDefault("fallen_tilt_min", fallenStartMinTilt), tilt);
             var pitch = Mathf.Clamp(Random.Range(minTilt, tilt), 0f, 110f);
-            hips.rotation = Quaternion.Euler(pitch, yaw, Random.Range(0f, 360f));
+
+            //Tip by `pitch` degrees about a RANDOM HORIZONTAL AXIS: the curriculum sets how far it
+            //has fallen, and the axis sets which way, independently.
+            //
+            //This was Quaternion.Euler(pitch, yaw, Random.Range(0f, 360f)) - and that third
+            //argument is ROLL, sampled over the full circle regardless of pitch. So "tilt 0" was
+            //not an upright start, it was upright pitch with a uniformly random roll: on its side
+            //or fully inverted about as often as standing. fallen_tilt never controlled difficulty
+            //at all, which is why widening and narrowing it changed nothing across five runs, why
+            //a Stage1 seed was destroyed in under 100k steps (it was never handed a pose it could
+            //stand from), and why the probe measured mean posture 0.084 at "tilt 0".
+            //
+            //Because the axis is horizontal, dot(hips.up, worldUp) is exactly cos(pitch) now, so
+            //start posture is cos(pitch) * height ratio - predictable, and the cos model used to
+            //calibrate thresholds is finally true instead of merely assumed.
+            var fallAxis = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f) * Vector3.right;
+            hips.rotation = Quaternion.AngleAxis(pitch, fallAxis) * Quaternion.Euler(0f, yaw, 0f);
         }
         else
         {
