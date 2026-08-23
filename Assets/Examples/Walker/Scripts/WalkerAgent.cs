@@ -128,6 +128,23 @@ public class WalkerAgent : Agent
     //the objective can't shift under the agent mid-episode when a curriculum lesson advances.
     float m_PostureFocus;
 
+    //Per-episode posture accumulators, emitted at the next OnEpisodeBegin.
+    //
+    //Mean posture alone is confounded by episode length: every episode opens with a low-posture
+    //transient, so shorter episodes drag the mean down even when the pose held is identical. That
+    //confound has now cost two wrong readings (the 0.52 "ceiling" that was really 0.52-0.66, and
+    //Getup4 looking WORSE than Getup3 mostly because its episodes are 35% shorter). These two
+    //separate the questions the mean fuses together:
+    //  PeakPosture  - did it EVER get up? immune to how long it stayed there.
+    //  TimeUpright  - what FRACTION of the episode was spent standing? immune to episode length.
+    float m_PeakPosture;
+    int m_UprightSteps;
+    int m_EpisodePhysicsSteps;
+
+    //Posture counted as "standing" for TimeUpright. Deliberately not tied to collapse_posture:
+    //that one ratchets, and a yardstick that moves can't be compared across a run.
+    const float k_UprightPosture = 0.7f;
+
     [Header("Motion Smoothness")]
     [Range(0f, 0.5f)]
     [Tooltip("Penalty per decision for how much the action vector changed since the last decision. " +
@@ -202,6 +219,23 @@ public class WalkerAgent : Agent
         m_CollapsedSteps = 0;
         m_HasPrevPosture = false;
         m_PostureFocus = Mathf.Clamp01(m_ResetParams.GetWithDefault("posture_focus", postureFocus));
+
+        //Emit the episode that just finished. Done here rather than at the termination sites
+        //because there are three of them - EndEpisode, EpisodeInterrupted, and the base class's
+        //own MaxStep cutoff, which never routes through this script at all. OnEpisodeBegin is the
+        //one place every path converges. Costs the very first episode of each agent, which is noise
+        //against thousands.
+        if (m_EpisodePhysicsSteps > 0)
+        {
+            var stats = Academy.Instance.StatsRecorder;
+            stats.Add("Walker/PeakPosture", m_PeakPosture, StatAggregationMethod.Average);
+            stats.Add("Walker/TimeUpright", (float)m_UprightSteps / m_EpisodePhysicsSteps,
+                StatAggregationMethod.Average);
+        }
+
+        m_PeakPosture = 0f;
+        m_UprightSteps = 0;
+        m_EpisodePhysicsSteps = 0;
 
         //Random start rotation to help generalize
         var yaw = Random.Range(0.0f, 360.0f);
@@ -470,6 +504,13 @@ public class WalkerAgent : Agent
         //ever reaches a genuine stand.
         Academy.Instance.StatsRecorder.Add("Walker/Posture", postureReward,
             StatAggregationMethod.Histogram);
+
+        m_EpisodePhysicsSteps++;
+        m_PeakPosture = Mathf.Max(m_PeakPosture, postureReward);
+        if (postureReward >= k_UprightPosture)
+        {
+            m_UprightSteps++;
+        }
 
         //Cut the episode short if the ragdoll has been collapsed for too long. The counter resets
         //the moment posture recovers, so an agent making progress toward standing keeps its time.
