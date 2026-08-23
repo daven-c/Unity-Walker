@@ -348,7 +348,7 @@ Because the curriculum starved it. Lesson 0 → 1 came at **12.90M**, 1 → 2 at
 
 **Reward is the wrong thing to gate a curriculum on here, in both directions.** At threshold 1,100 (Stage2c) it skipped to the hardest lesson in 250k steps, because a walker that never recovers still banks ~0.7W. At 1,450 it took 13M steps to clear the first lesson, because reward mostly tracks gait quality and improving the gait is what eventually crossed the bar. Reward cannot separate "walks well" from "recovers well", and ML-Agents only offers `reward` or `progress` as measures — so the curriculum now gates on **progress**, giving each lesson a guaranteed budget: 4.5M / 6M / 19.5M against a raised 30M `max_steps`.
 
-### 13. `Walker_GetupOnly` — 6M steps, recovery finally happens
+### 13. `Walker_GetupOnly` — 20M steps, recovery finally happens
 
 Every episode starts near-prone (80–90°), so 100% of experience is get-up practice against ~15% under the graduated curriculum. With `collapsedStepLimit` at 600 physics steps, an agent that never rises is cut at **120 decisions** — that's the floor, and it makes episode length an unambiguous readout.
 
@@ -364,23 +364,56 @@ Episode length climbed to 838 against a floor of 120, max 978. After five runs t
 
 **The lesson: when a behavior won't emerge, check how much of the data actually contains it** before rewriting the reward. Across Stage2b–2f the agent was spending 85–99% of its experience on walking while the target behavior was recovery. Isolating the skill did in ~90 minutes what five multi-hour runs of reward and curriculum tuning could not.
 
-Caveat on where it got to: it reaches a kneel, not a stand — clear of the 0.2 collapse threshold but well short of upright. Reward was still climbing at the 6M budget.
+Caveat on where it got to: it reaches a kneel, not a stand — clear of the 0.2 collapse threshold but well short of upright.
+
+Reward was still climbing at the 6M budget, so `max_steps` was raised and the run continued to 20M:
+
+| Steps | Mean reward |
+|---|---|
+| 6,000,000 | 249 |
+| 18,499,337 | 797.4 |
+| 18,999,177 | 716.8 |
+| 19,499,787 | 845.8 |
+| 19,999,548 | 918.0 |
+| 20,000,548 | **954.1** (final) |
+
+Still climbing at the wall. But more steps only bought a *better kneel* — 249 → 954 is the agent perfecting a pose that was never the goal, which is what §14 is about.
 
 ### 14. Measuring the kneel — the collapse threshold was the target all along
 
-Rather than guess, `Walker/Posture` was logged to TensorBoard as a histogram and the run resumed briefly to read it. **The distribution tops out around 0.5.** Standing is 1.0 by construction (`m_StandingHeight` is calibrated from the ragdoll's own pose at `Initialize`), so 0.5 is the *ceiling* of this policy, not its typical value — torso upright, folded down onto the shins.
+Rather than guess, `Walker/Posture` was logged to TensorBoard as a histogram. Over the 14M steps to the 20M wall it **settles around 0.52 and is still creeping up.** Standing is 1.0 by construction (`m_StandingHeight` is calibrated from the ragdoll's own pose at `Initialize`), so 0.52 is torso vertical, folded down onto the shins — the kneel, exactly as it looks in playback.
 
 That is worth stating plainly: my earlier estimate, back-solved from mean reward through an assumed rigid-tilt `cos²` model, was ≈0.3. It was wrong by most of the gap. A kneel holds the torso vertical, so `dot(hips.up, up)` stays near 1 and nearly all the loss comes from the height ratio — a shape the tilt model doesn't describe. **Back-solving a quantity out of an aggregate reward is not measurement.** Logging the quantity cost one line and settled it.
 
-Two changes follow from the number:
+One caveat on 0.52 that shaped the fix: it is an episode *mean* over every physics step, and every episode opens with two or three seconds prone at posture ≈0. So 0.52 is a lower bound on the pose actually held once risen — if the transient is a quarter of the episode, the held pose is nearer 0.66. The histogram cannot separate the transient from the plateau, and the two readings imply different thresholds.
 
-**The threshold is now curriculum-ramped** — 0.2 → 0.4 → 0.55 → 0.7 — via the `collapse_posture` environment parameter. Any fixed bar becomes a target, because the agent settles at the cheapest pose that clears it; 0.2 means "off the floor", and the cheapest pose clearing "off the floor" is a kneel that survives indefinitely. 0.55 sits just above the measured ceiling, so the existing policy cannot clear it at all. Thresholds are written against progress ≥ 0.30, since resuming at step 6M of 20M starts a `measure: progress` curriculum a third of the way in and silently skips any earlier lesson.
+Two changes follow:
+
+**The threshold is now curriculum-ramped** — 0.2 → 0.35 → 0.5 → 0.6 → 0.7 — via the `collapse_posture` environment parameter. Any fixed bar becomes a target, because the agent settles at the cheapest pose that clears it; 0.2 means "off the floor", and the cheapest pose clearing "off the floor" is a kneel that survives indefinitely.
+
+A ratchet is also how the ambiguity above gets resolved without resolving it first: it walks the bar up through both candidate ceilings and bites wherever the real one is. **The lesson where episode length drops is the measurement** — that step is the true held-posture ceiling, and it's free.
+
+`measure: progress` is `current_step / max_steps`, so these thresholds only mean what they say on a run that starts at step 0 — which is one reason the next run uses `--initialize-from` rather than `--resume`.
 
 **The collapse cut is now `EndEpisode()` rather than `EpisodeInterrupted()`** — and without this, the ramp above would have been close to inert. `EpisodeInterrupted` resolves to `DoneReason.MaxStepReached`, which *bootstraps* `V(s_T)`. Bootstrapping is right for a cutoff that's an artifact of the harness rather than the task, and it means the agent doesn't perceive the cutoff as costly: the bootstrapped target converges to the infinite-horizon value of kneeling regardless of where the bar sits. Raising the bar would only have shortened episodes — a real effect on the *data distribution*, since shorter episodes mean more prone resets per hour, but no effect on the *objective*. `EndEpisode` marks a terminal state worth zero future reward, which makes failing to rise genuinely cost something.
 
 This is not the lesson stage 2 exists to unlearn. That was "touching the ground is death", which fired on contact and denied any chance to recover; it stays off (`agentDoneOnGroundContact` is 0 on all 16 body parts). This fires only after 600 physics steps of *failing to get back up*, and failing to get up is failure.
 
 **The general lesson: a termination condition is a specification of success, and the agent reads it far more literally than the reward.** `collapsedPostureThreshold` was written as a housekeeping parameter — cut dead episodes, save sim time — and it quietly became the definition of "good enough". Any survival cutoff does this. If a state lets the episode continue, expect the agent to find it and stay there.
+
+**Neither change was in effect for the 20M run.** Training was launched seven minutes before the ramp and the `EndEpisode` swap were written, so the whole 6M→20M stretch ran at a flat 0.2 with the bootstrapping cut. That is legible after the fact because `mlagents-learn` writes the config it actually used to `results/<run-id>/configuration.yaml`, and that file has no `collapse_posture` key at all.
+
+Which makes it a clean measurement of the un-ramped policy rather than a wasted run — but the lesson holds regardless: **check `results/<run-id>/configuration.yaml` after launch, not the file you edited.** A curriculum that silently isn't there looks exactly like a curriculum that isn't working, and 14 M steps is a long time to spend on that distinction.
+
+### 15. Next: `Walker_Getup2`, seeded from the kneeler
+
+`--initialize-from=Walker_GetupOnly` rather than `--resume`, for three reasons that happen to coincide:
+
+- **`--resume` cannot work.** The run ended at 20,000,548 against `max_steps: 20000000`; a run at its wall exits immediately. (Second time — see the note on `max_steps` in `config_getup.yaml`.)
+- **The LR schedule is spent.** `learning_rate_schedule: linear` has decayed to ~0 at the wall, so even a resumed run would barely move.
+- **The curriculum needs a clean axis.** `measure: progress` counts from step 0. Resuming at 20M would drop straight into the last lesson; `--initialize-from` resets the counter, so the ramp runs as written.
+
+The weights carry over, which is the part worth keeping — rising from prone to a stable kneel is most of a get-up. Lesson 0 holds the bar at 0.2 for the first 2M steps so the seeded policy re-stabilises under the terminal cut before the bar starts moving; otherwise a regression can't be attributed between the two changes.
 
 ## Notes on reward design and retraining
 

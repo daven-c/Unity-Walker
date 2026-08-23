@@ -19,10 +19,14 @@ behaviors:
                 gamma: 0.995
                 strength: 1.0
         keep_checkpoints: 5
-        max_steps: 20000000 # Was 6M. Resuming a run that has reached max_steps exits immediately,
-                            # and the linear LR schedule has decayed to zero there anyway, so
-                            # raising it is required to continue - not just to allow more steps. # Stage2f was still improving at 15M and had only reached the
-                            # hardest lesson with 1M steps left. Doubled to give it real time.
+        max_steps: 20000000 # ~4 h on this machine at the measured ~1,450 steps/sec.
+                            #
+                            # This is a schedule, not just a budget: it drives the linear LR decay AND
+                            # the `progress` measure the curriculum below is gated on. A run that
+                            # reaches it is finished in both senses - `--resume` exits immediately and
+                            # the LR has decayed to zero - so continuing past it means a NEW run-id
+                            # seeded with `--initialize-from`, which restarts step 0 and hence both
+                            # schedules. Walker_GetupOnly hit this at 20,000,548.
         time_horizon: 1000
         summary_freq: 50000
 # GET-UP ONLY. A decisive test of whether recovery is learnable from this reward at all.
@@ -33,20 +37,34 @@ behaviors:
 # Decision rule: if a few million steps of this produce no recovery, the behaviour is not reachable
 # by exploration from this reward, and the answer is demonstrations (BC/GAIL over a scripted get-up),
 # not further curriculum tuning.
+#
+# ANSWERED, at 20M steps: recovery IS reachable. The ragdoll reliably rises from prone to a stable
+# kneel (mean reward 954, episode length ~838 against a no-recovery floor of 120). No demonstrations
+# needed. The remaining problem is not "can't get up", it is "stops halfway" - see collapse_posture.
 environment_parameters:
     fallen_tilt: 90
     fallen_tilt_min: 80
-    # The bar the ragdoll has to clear to reset its collapse timer, ramped upward.
+    # The bar the ragdoll has to clear to reset its collapse timer, ratcheted upward.
     #
-    # Set from measurement, not geometry: the Walker/Posture histogram for the kneeling policy
-    # tops out around 0.5, so 0.5 is this policy's CEILING, not its typical value. Standing is
-    # 1.0 by construction (m_StandingHeight is calibrated from the ragdoll's own pose at
-    # Initialize), so 0.5 is roughly halfway - torso upright but folded down onto the shins.
+    # MEASURED, over 20M steps of the un-ramped kneeling policy: Walker/Posture settles around
+    # 0.52 and was still climbing slowly. Standing is 1.0 by construction (m_StandingHeight is
+    # calibrated from the ragdoll's own pose at Initialize), so 0.52 is a torso held vertical but
+    # folded down onto the shins - the kneel, exactly as observed in playback.
     #
-    # NOTE ON RESUMING: progress = current_step / max_steps, so resuming Walker_GetupOnly at
-    # step 6M of 20M starts at progress 0.30 and skips any lesson whose threshold is below it.
-    # The thresholds below are therefore written against 6M, not 0 - lesson 0 exists to give
-    # ~1M steps of unchanged settings after the resume so a regression is attributable.
+    # Why a RAMP and not the single measured number. 0.52 is an episode-mean over every physics
+    # step, and every episode opens with 2-3 s prone at posture ~0. So 0.52 is a lower bound on
+    # the pose actually held once standing-ish: if the transient is a quarter of the episode, the
+    # held pose is nearer 0.66. The histogram cannot separate the two, and the two imply different
+    # thresholds. A ratchet does not need them separated - it walks the bar up through both
+    # readings and bites wherever the real ceiling turns out to be. Watch which lesson is the one
+    # where episode length drops; that step is the true ceiling, and it is worth writing down.
+    #
+    # NOTE ON PROGRESS: measure `progress` is current_step / max_steps, so these thresholds only
+    # mean what they say on a run that STARTS at step 0. `--initialize-from` does that (it seeds
+    # weights but resets the counter); `--resume` does not, and would drop straight into whichever
+    # lesson matches the resumed step. Lesson 0 is unchanged at 0.2 so the first 2M steps
+    # re-stabilise the seeded policy under the new terminal cut before the bar moves at all -
+    # otherwise a regression is unattributable between the two changes.
     collapse_posture:
         curriculum:
             - name: Kneel # 0.2, unchanged. A kneel clears this forever; that is the bug.
@@ -55,25 +73,33 @@ environment_parameters:
                   behavior: Walker
                   signal_smoothing: true
                   min_lesson_length: 500
-                  threshold: 0.35
+                  threshold: 0.10
               value: 0.2
-            - name: GoodKneel # under the ceiling: a sloppy kneel no longer counts, a clean one does
+            - name: GoodKneel # a sloppy half-collapsed kneel stops counting; a clean upright one still does
               completion_criteria:
                   measure: progress
                   behavior: Walker
                   signal_smoothing: true
                   min_lesson_length: 500
-                  threshold: 0.55
-              value: 0.4
-            - name: AboveKneel # just past the ceiling - the current policy cannot clear this at all
+                  threshold: 0.25
+              value: 0.35
+            - name: AtCeiling # right at the measured mean - marginal even for a good kneel
               completion_criteria:
                   measure: progress
                   behavior: Walker
                   signal_smoothing: true
                   min_lesson_length: 500
-                  threshold: 0.75
-              value: 0.55
-            - name: Stand # a real stand, with slack for lean and bent knees. Not 1.0: nothing hits 1.0.
+                  threshold: 0.45
+              value: 0.5
+            - name: PastKneel # above any kneel: has to come up off the shins onto the feet
+              completion_criteria:
+                  measure: progress
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 500
+                  threshold: 0.65
+              value: 0.6
+            - name: Stand # a real stand, with slack for lean and bent knees. Not 1.0: nothing holds 1.0.
               value: 0.7
 engine_settings:
     # Simulated seconds per real second. Measured from Walker_timers.json: 450,013 physics
