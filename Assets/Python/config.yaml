@@ -22,6 +22,33 @@ behaviors:
         max_steps: 15000000 # 15 Million steps (Walking is hard!)
         time_horizon: 1000
         summary_freq: 50000
+# Stage 2 recovery curriculum. Recovering from fully prone (~90 deg) is a long, precise action
+# sequence that random exploration essentially never discovers - the reward on the way up is
+# ~0.035/step against 0.3-1.0/step for walking, so there is nothing to climb. Starting shallow
+# gives the walking policy a stumble it can already half-correct, then the tilt deepens as it
+# improves. Read by WalkerAgent via Academy EnvironmentParameters; falls back to the Inspector's
+# fallenStartTilt when running without a curriculum.
+environment_parameters:
+    fallen_tilt:
+        curriculum:
+            - name: Stumble # shallow lean, recoverable with the balance it already has
+              completion_criteria:
+                  measure: reward
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 100
+                  threshold: 1100
+              value: 30
+            - name: Toppled # genuinely down, but not flat
+              completion_criteria:
+                  measure: reward
+                  behavior: Walker
+                  signal_smoothing: true
+                  min_lesson_length: 100
+                  threshold: 1100
+              value: 60
+            - name: Prone # the original 90-degree case
+              value: 90
 engine_settings:
     # Simulated seconds per real second. Measured from Walker_timers.json: 450,013 physics
     # steps in 1,625 s = 277/sec, and at fixedDeltaTime 0.02 that is an *effective* 5.5x.

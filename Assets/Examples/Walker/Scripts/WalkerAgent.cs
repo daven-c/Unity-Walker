@@ -72,6 +72,13 @@ public class WalkerAgent : Agent
     [Tooltip("Posture below this counts as collapsed for the timeout above.")]
     public float collapsedPostureThreshold = 0.2f;
 
+    [Range(0f, 110f)]
+    [Tooltip("How far a fallen start tips the ragdoll, in degrees of pitch. ~20 is a stumble the " +
+             "walking policy can often correct already; 90 is fully prone and much harder. " +
+             "Overridden by the 'fallen_tilt' environment parameter, so config.yaml can ramp it as " +
+             "a curriculum rather than always training the hardest case.")]
+    public float fallenStartTilt = 30f;
+
     //Consecutive physics steps spent below collapsedPostureThreshold.
     int m_CollapsedSteps;
 
@@ -152,9 +159,14 @@ public class WalkerAgent : Agent
         var yaw = Random.Range(0.0f, 360.0f);
         if (Random.value < fallenStartProbability)
         {
-            //Tip the ragdoll onto its side/back/front so it has to practice getting up,
-            //rather than only ever starting from a stable standing pose.
-            hips.rotation = Quaternion.Euler(Random.Range(70f, 110f), yaw, Random.Range(0f, 360f));
+            //Tip the ragdoll over so it has to practice recovering, rather than only ever starting
+            //from a stable standing pose. The tilt is curriculum-driven: recovering from fully prone
+            //(~90) is a long precise sequence that random exploration essentially never finds, while
+            //a shallow tilt is a stumble the walking policy can already half-correct - which gives
+            //it something to climb from. Ramp 'fallen_tilt' in config.yaml as it improves.
+            var tilt = m_ResetParams.GetWithDefault("fallen_tilt", fallenStartTilt);
+            var pitch = Mathf.Clamp(tilt + Random.Range(-10f, 10f), 0f, 110f);
+            hips.rotation = Quaternion.Euler(pitch, yaw, Random.Range(0f, 360f));
         }
         else
         {

@@ -118,6 +118,8 @@ Two design notes worth carrying forward:
   - *Stage 1 (complete):* `agentDoneOnGroundContact: 1` on the 12 non-ground parts — falling ends the episode.
   - *Stage 2 (current):* all 16 set to `0`, so falling is a recoverable state.
 
+  Stage 2 also **ramps how far fallen starts tip the ragdoll**, via the `fallen_tilt` environment parameter driven by the curriculum in `config.yaml` (30° → 60° → 90°, advancing on reward). Fully prone was always the hardest case, and starting there gave exploration nothing to climb; a shallow lean is a stumble the walking policy can already half-correct. `WalkerAgent` reads it through `Academy.EnvironmentParameters` and falls back to the Inspector's `fallenStartTilt` when no curriculum is supplied.
+
   Stage 2 adds a second exit: if `postureReward` stays below `collapsedPostureThreshold` (0.2) for `collapsedStepLimit` consecutive physics steps (600, ~12 simulated seconds), the episode is cut short via **`EpisodeInterrupted()`**. The counter resets the instant posture recovers, so an agent making progress keeps its time. `EpisodeInterrupted` resolves to `DoneReason.MaxStepReached` and bootstraps the value estimate — `EndEpisode()` would mark a terminal state worth zero future reward and re-teach "the ground is death," which is the lesson stage 2 exists to unlearn.
 
   The 4 parts that are **never** set to `1` are `footL`, `footR`, `shinL`, `shinR` — feet and shins legitimately touch the ground while walking, so terminating on their contact would end every episode instantly. The other 12 are `hips`, `spine`, `chest`, `head`, `upper_arm_L/R`, `lower_arm_L/R`, `hand_L/R`, `thighL/R`. Identify them by name rather than by line number when switching stages: the flags appear 16 times in the prefab YAML in a non-obvious order, and the block shifted by 3 lines when `Inference`/`fallenStartProbability`/`actionRatePenalty` were serialized onto it.
@@ -336,7 +338,7 @@ Rule of thumb: **`--initialize-from` when adding a skill, start fresh when remov
 
 ## Todo
 
-- **Automate the curriculum.** `m_ResetParams` in `WalkerAgent` is an assigned-but-unused `EnvironmentParameters` hook, which is exactly what ML-Agents' native curriculum system drives. Wiring `fallenStartProbability` (and a termination toggle) through it would make both stages one `mlagents-learn` job with lessons in `config.yaml`, instead of two manual runs with an Inspector edit between them.
+- **Automate the stage 1 → 2 switch.** `fallen_tilt` now runs through `EnvironmentParameters`, but `agentDoneOnGroundContact` and `fallenStartProbability` are still manual prefab edits between stages. Routing those through the same channel would make the whole curriculum one `mlagents-learn` job.
 - **Headless parallel training** — build the project to a standalone player (File → Build) and run `mlagents-learn` against it with `--no-graphics --num-envs=N`. This is the main remaining throughput win.
 
   Observed symptom on an i9-9900KF (8C/16T): the Editor lags while every logical processor runs moderately busy and spiky, none saturated, and the GPU idle. That rules out a raw compute limit.
