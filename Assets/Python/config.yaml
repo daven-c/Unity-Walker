@@ -28,6 +28,15 @@ behaviors:
 # gives the walking policy a stumble it can already half-correct, then the tilt deepens as it
 # improves. Read by WalkerAgent via Academy EnvironmentParameters; falls back to the Inspector's
 # fallenStartTilt when running without a curriculum.
+#
+# Threshold calibration matters more than it looks. Mean reward is roughly
+# W * (0.7 + 0.3p), where W is a well-walked episode and p the recovery rate - so with 30%
+# fallen starts, a stage-1 walker that NEVER recovers still banks ~0.7W. Measured on
+# Walker_Stage2c that baseline was ~1,200, so the original 1,100 threshold was satisfied by
+# inherited walking alone: the curriculum jumped to lesson 2 (Prone) within 250k steps without
+# learning anything, then flatlined. Thresholds now sit above that no-recovery baseline so
+# advancing requires genuine recovery, and min_lesson_length is long enough to matter - at 40
+# agents, 100 episodes completed inside a single summary window.
 environment_parameters:
     fallen_tilt:
         curriculum:
@@ -36,16 +45,16 @@ environment_parameters:
                   measure: reward
                   behavior: Walker
                   signal_smoothing: true
-                  min_lesson_length: 100
-                  threshold: 1100
+                  min_lesson_length: 500
+                  threshold: 1450
               value: 30
             - name: Toppled # genuinely down, but not flat
               completion_criteria:
                   measure: reward
                   behavior: Walker
                   signal_smoothing: true
-                  min_lesson_length: 100
-                  threshold: 1100
+                  min_lesson_length: 500
+                  threshold: 1500
               value: 60
             - name: Prone # the original 90-degree case
               value: 90
