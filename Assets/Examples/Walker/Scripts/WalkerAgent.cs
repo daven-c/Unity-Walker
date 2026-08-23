@@ -59,7 +59,7 @@ public class WalkerAgent : Agent
     [Header("Fall Recovery")]
     [Range(0f, 1f)]
     [Tooltip("Chance an episode starts with the ragdoll already knocked over, so it gets practice standing back up.")]
-    public float fallenStartProbability = 0.3f;
+    public float fallenStartProbability = 0.5f;
 
     [Tooltip("Physics steps the ragdoll may stay collapsed before the episode is cut short. 0 disables. " +
              "Without this a ragdoll that can't recover lies still for the rest of the episode earning ~0. " +
@@ -179,8 +179,14 @@ public class WalkerAgent : Agent
             //(~90) is a long precise sequence that random exploration essentially never finds, while
             //a shallow tilt is a stumble the walking policy can already half-correct - which gives
             //it something to climb from. Ramp 'fallen_tilt' in config.yaml as it improves.
+            //Sample UNIFORMLY up to the curriculum's current tilt rather than sitting at it. Posture
+            //falls off as ~cos^2(tilt), so it doesn't drop under collapsedPostureThreshold until
+            //~63 degrees: a 30 or 60 degree start is a balance perturbation, not a get-up. Fixed-tilt
+            //lessons therefore stepped off a cliff - 12.9M steps of balance practice, then straight
+            //to 90 with nothing in between. Sampling the whole range keeps a continuous difficulty
+            //gradient in every batch, so there are always cases just beyond what it can already do.
             var tilt = m_ResetParams.GetWithDefault("fallen_tilt", fallenStartTilt);
-            var pitch = Mathf.Clamp(tilt + Random.Range(-10f, 10f), 0f, 110f);
+            var pitch = Mathf.Clamp(Random.Range(0f, tilt), 0f, 110f);
             hips.rotation = Quaternion.Euler(pitch, yaw, Random.Range(0f, 360f));
         }
         else

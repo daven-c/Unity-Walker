@@ -41,23 +41,23 @@ environment_parameters:
             # improving rather than any recovery milestone. Reward cannot separate "walks well"
             # from "recovers well", so it is the wrong gate. Progress is at least predictable:
             # every lesson gets a guaranteed budget.
-            - name: Stumble # 0 - 4.5M steps
+            - name: Lean # tilts sampled 0-45, still mostly balance work
               completion_criteria:
                   measure: progress
                   behavior: Walker
                   signal_smoothing: true
                   min_lesson_length: 500
                   threshold: 0.15
-              value: 30
-            - name: Toppled # 4.5M - 10.5M steps
+              value: 45
+            - name: Toppled # 0-70: first lesson where a real share of starts are collapsed (>63)
               completion_criteria:
                   measure: progress
                   behavior: Walker
                   signal_smoothing: true
                   min_lesson_length: 500
                   threshold: 0.35
-              value: 60
-            - name: Prone # 10.5M - 30M steps, ~19.5M on the hardest case vs 1M in Stage2f
+              value: 70
+            - name: Prone # 0-90: full range, ~30% of fallen starts genuinely need a get-up
               value: 90
 engine_settings:
     # Simulated seconds per real second. Measured from Walker_timers.json: 450,013 physics
