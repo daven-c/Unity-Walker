@@ -73,19 +73,19 @@ public class WalkerAgent : Agent
     public float collapsedPostureThreshold = 0.2f;
 
     [Range(0f, 110f)]
-    [Tooltip("How far a fallen start tips the ragdoll, in degrees of pitch. ~20 is a stumble the " +
-             "walking policy can often correct already; 90 is fully prone and much harder. " +
-             "Overridden by the 'fallen_tilt' environment parameter, so config.yaml can ramp it as " +
-             "a curriculum rather than always training the hardest case.")]
+    [Tooltip("Upper bound on how far a fallen start tips the ragdoll. Pitch is sampled UNIFORMLY in " +
+             "[0, this], so every batch spans the difficulty range rather than sitting at one value. " +
+             "Posture falls off as ~cos^2(tilt) and only drops below collapsedPostureThreshold around " +
+             "63 degrees, so anything under that is a balance perturbation rather than a get-up. " +
+             "Overridden by the 'fallen_tilt' environment parameter so config.yaml can ramp it.")]
     public float fallenStartTilt = 30f;
 
-    [Tooltip("Weight on potential-based shaping over posture: k * (gamma*posture_t - posture_t-1). " +
+    [Tooltip("Weight on shaping over posture: k * (posture_t - posture_t-1), the pure difference. " +
              "The plain posture term is a LEVEL reward - it says where you are, not whether you're " +
              "improving - so the first half of a get-up earns nothing and there's no gradient to " +
-             "follow. This pays for the change instead, densely, the moment posture starts rising. " +
-             "It also runs negative while posture falls, so it discourages falling as well. " +
-             "Potential-based shaping is policy-invariant (Ng et al. 1999): it cannot create new " +
-             "optima the way the additive posture bonus was once gamed by crawling.")]
+             "follow. This pays for the change instead, densely, the moment posture starts rising, " +
+             "and runs negative while posture falls so it discourages falling too. Sums over an " +
+             "episode to k*(posture_end - posture_start).")]
     public float postureShapingWeight = 50f;
 
     //Previous step's posture, for the shaping term. Null-state tracked separately so the first
