@@ -61,6 +61,20 @@ public class WalkerAgent : Agent
     [Tooltip("Chance an episode starts with the ragdoll already knocked over, so it gets practice standing back up.")]
     public float fallenStartProbability = 0.3f;
 
+    [Tooltip("Physics steps the ragdoll may stay collapsed before the episode is cut short. 0 disables. " +
+             "Without this a ragdoll that can't recover lies still for the rest of the episode earning ~0. " +
+             "Cutting it converts one dead episode into several fresh recovery attempts, since each new " +
+             "episode reseeds a different fallen pose. Keep it generous - getting up takes several seconds, " +
+             "and too low a value cuts off attempts that were about to succeed.")]
+    public int collapsedStepLimit = 600;
+
+    [Range(0f, 1f)]
+    [Tooltip("Posture below this counts as collapsed for the timeout above.")]
+    public float collapsedPostureThreshold = 0.2f;
+
+    //Consecutive physics steps spent below collapsedPostureThreshold.
+    int m_CollapsedSteps;
+
     [Header("Motion Smoothness")]
     [Range(0f, 0.5f)]
     [Tooltip("Penalty per decision for how much the action vector changed since the last decision. " +
@@ -132,6 +146,7 @@ public class WalkerAgent : Agent
         //Drop the action history so the first decision of the episode isn't charged an
         //action-rate penalty for the discontinuity across the episode boundary.
         m_PrevActions = null;
+        m_CollapsedSteps = 0;
 
         //Random start rotation to help generalize
         var yaw = Random.Range(0.0f, 360.0f);
@@ -344,6 +359,23 @@ public class WalkerAgent : Agent
         //The standalone posture term is what gives a fallen agent a gradient to stand back up,
         //since the gated locomotion term is ~0 until it does.
         AddReward(matchSpeedReward * lookAtTargetReward * postureReward + 0.1f * postureReward);
+
+        //Cut the episode short if the ragdoll has been collapsed for too long. The counter resets
+        //the moment posture recovers, so an agent making progress toward standing keeps its time.
+        if (collapsedStepLimit > 0)
+        {
+            m_CollapsedSteps = postureReward < collapsedPostureThreshold ? m_CollapsedSteps + 1 : 0;
+            if (m_CollapsedSteps >= collapsedStepLimit)
+            {
+                m_CollapsedSteps = 0;
+
+                //EpisodeInterrupted, NOT EndEpisode. This resolves to DoneReason.MaxStepReached,
+                //which bootstraps the value estimate. EndEpisode would mark a terminal state worth
+                //zero future reward, re-teaching "being on the ground is death" - exactly the lesson
+                //stage 2 exists to unlearn.
+                EpisodeInterrupted();
+            }
+        }
     }
 
     //Returns the average velocity of all of the body parts
