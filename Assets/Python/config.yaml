@@ -19,7 +19,8 @@ behaviors:
                 gamma: 0.995
                 strength: 1.0
         keep_checkpoints: 5
-        max_steps: 15000000 # 15 Million steps (Walking is hard!)
+        max_steps: 30000000 # Stage2f was still improving at 15M and had only reached the
+                            # hardest lesson with 1M steps left. Doubled to give it real time.
         time_horizon: 1000
         summary_freq: 50000
 # Stage 2 recovery curriculum. Recovering from fully prone (~90 deg) is a long, precise action
@@ -28,35 +29,35 @@ behaviors:
 # gives the walking policy a stumble it can already half-correct, then the tilt deepens as it
 # improves. Read by WalkerAgent via Academy EnvironmentParameters; falls back to the Inspector's
 # fallenStartTilt when running without a curriculum.
-#
-# Threshold calibration matters more than it looks. Mean reward is roughly
-# W * (0.7 + 0.3p), where W is a well-walked episode and p the recovery rate - so with 30%
-# fallen starts, a stage-1 walker that NEVER recovers still banks ~0.7W. Measured on
-# Walker_Stage2c that baseline was ~1,200, so the original 1,100 threshold was satisfied by
-# inherited walking alone: the curriculum jumped to lesson 2 (Prone) within 250k steps without
-# learning anything, then flatlined. Thresholds now sit above that no-recovery baseline so
-# advancing requires genuine recovery, and min_lesson_length is long enough to matter - at 40
-# agents, 100 episodes completed inside a single summary window.
 environment_parameters:
     fallen_tilt:
         curriculum:
-            - name: Stumble # shallow lean, recoverable with the balance it already has
+            # Gated on PROGRESS (fraction of max_steps), not reward. Reward gating failed in both
+            # directions: at threshold 1100 Walker_Stage2c skipped straight to lesson 2 in 250k
+            # steps, because with 30% fallen starts a walker that never recovers still banks ~0.7W
+            # and that cleared the bar. Raised to 1450, Walker_Stage2f then sat on lesson 0 for
+            # 12.9M of 15M steps and only saw truly prone starts for the final 1M - because reward
+            # mostly tracks walking quality, so crossing the bar took 13M steps of the gait
+            # improving rather than any recovery milestone. Reward cannot separate "walks well"
+            # from "recovers well", so it is the wrong gate. Progress is at least predictable:
+            # every lesson gets a guaranteed budget.
+            - name: Stumble # 0 - 4.5M steps
               completion_criteria:
-                  measure: reward
+                  measure: progress
                   behavior: Walker
                   signal_smoothing: true
                   min_lesson_length: 500
-                  threshold: 1450
+                  threshold: 0.15
               value: 30
-            - name: Toppled # genuinely down, but not flat
+            - name: Toppled # 4.5M - 10.5M steps
               completion_criteria:
-                  measure: reward
+                  measure: progress
                   behavior: Walker
                   signal_smoothing: true
                   min_lesson_length: 500
-                  threshold: 1500
+                  threshold: 0.35
               value: 60
-            - name: Prone # the original 90-degree case
+            - name: Prone # 10.5M - 30M steps, ~19.5M on the hardest case vs 1M in Stage2f
               value: 90
 engine_settings:
     # Simulated seconds per real second. Measured from Walker_timers.json: 450,013 physics

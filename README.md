@@ -326,6 +326,24 @@ The reward drop was the clue. The shaping used the discounted form `k(γ·Φ′ 
 
 The lesson generalizes past this bug: **simulate a reward term's episode sum before training on it.** Five lines of Python would have caught this ahead of an hour of GPU time. The runtime version of the same check is watching whether the reward *scale* shifts unexpectedly in the first 100k steps — a new term that changes the magnitude rather than the trend is a red flag.
 
+### 12. `Walker_Stage2f` — 15M steps, the shaping works but the curriculum starves it
+
+First run of four to move at all.
+
+| Phase | Episode length | Reward | Lesson |
+|---|---|---|---|
+| 0–2M | 526 | 964 | 0 |
+| 2–6M | 502 | 870 | 0 |
+| 6–10M | 562 | 1,014 | 0 |
+| 10–13M | 637 | 1,243 | 0 |
+| 13–15M | **700** | **1,471** | 1.46 |
+
+Episode length 502 → 700 and reward 870 → 1,471, sustained rather than noise. Corrected shaping does help — and the mechanism is visible in the split: the −50 for falling taught the walker to *stop falling* (standing episodes now run close to the 999 cap, versus ~690 in Stage2d), while the +50 for recovering has barely been exercised.
+
+Because the curriculum starved it. Lesson 0 → 1 came at **12.90M**, 1 → 2 at **14.10M**, so the agent saw genuinely prone starts for only the final **1M steps**. It hasn't failed at recovery so much as never practiced it.
+
+**Reward is the wrong thing to gate a curriculum on here, in both directions.** At threshold 1,100 (Stage2c) it skipped to the hardest lesson in 250k steps, because a walker that never recovers still banks ~0.7W. At 1,450 it took 13M steps to clear the first lesson, because reward mostly tracks gait quality and improving the gait is what eventually crossed the bar. Reward cannot separate "walks well" from "recovers well", and ML-Agents only offers `reward` or `progress` as measures — so the curriculum now gates on **progress**, giving each lesson a guaranteed budget: 4.5M / 6M / 19.5M against a raised 30M `max_steps`.
+
 ## Notes on reward design and retraining
 
 Generalizable lessons from the above, mostly learned the expensive way.
