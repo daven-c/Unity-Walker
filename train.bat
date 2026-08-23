@@ -8,5 +8,9 @@ if not exist venv\Scripts\activate.bat (
     exit /b 1
 )
 
+REM results/ deliberately lives OUTSIDE Assets/. Under Assets/ Unity's asset pipeline
+REM generates a .meta sibling for every file, including each events.out.tfevents.*,
+REM which breaks TensorBoard's directory watcher (it sorts alphabetically and latches
+REM onto the .meta) and pointlessly imports 16 MB .pt checkpoints as Unity assets.
 call venv\Scripts\activate.bat
-mlagents-learn Assets\Python\config.yaml --results-dir=Assets\Python\results %*
+mlagents-learn Assets\Python\config.yaml --results-dir=results %*

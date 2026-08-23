@@ -25,9 +25,10 @@ Assets/
 ├── Examples/Walker/          # Walker scenes, ragdoll prefabs, WalkerAgent.cs
 ├── Examples/SharedAssets/    # Shared ML-Agents example scripts (joints, targets, sensors, etc.)
 ├── ML-Agents/                # Training timers
-└── Python/                   # Training config, Python requirements, training results
+└── Python/                   # Training config + Python requirements
 Packages/                     # Unity package manifest (ML-Agents, URP, Input System, etc.)
 ProjectSettings/
+results/                      # Training runs. Deliberately OUTSIDE Assets/ - see below
 ```
 
 ## The MDP
@@ -114,8 +115,10 @@ Two design notes worth carrying forward:
 - **Dynamics:** Unity `PhysX` rigidbody simulation. `DecisionPeriod: 5` with `TakeActionsBetweenDecisions: 0` — the policy acts every 5th physics step and the command is held in between.
 - **Episode length:** `MaxStep: 5000` counts *physics* steps, not decisions — `Agent.StepCount` increments once per academy step, which is once per `FixedUpdate`. At `fixedDeltaTime` 0.02 that's **100 simulated seconds**, and at `DecisionPeriod: 5`, **~1000 decisions** per episode. Useful for reading reward magnitudes: reward is added every physics step and peaks around 1.1, so the practical ceiling is ~5,500 per episode.
 - **Termination — stage dependent.** ML-Agents bootstraps the value estimate at a step-limit cutoff rather than treating it as terminal, so timing out is never implicitly punished. Ground contact is the switch between the two curriculum stages:
-  - *Stage 1 (current):* `agentDoneOnGroundContact: 1` on the 12 torso/head/hand parts — falling ends the episode. The other 4 ground-legal parts (feet included) stay `0`.
-  - *Stage 2:* all 12 set to `0`, so falling is a recoverable state.
+  - *Stage 1 (complete):* `agentDoneOnGroundContact: 1` on the 12 non-ground parts — falling ends the episode.
+  - *Stage 2 (current):* all 16 set to `0`, so falling is a recoverable state.
+
+  The 4 parts that are **never** set to `1` are `footL`, `footR`, `shinL`, `shinR` — feet and shins legitimately touch the ground while walking, so terminating on their contact would end every episode instantly. The other 12 are `hips`, `spine`, `chest`, `head`, `upper_arm_L/R`, `lower_arm_L/R`, `hand_L/R`, `thighL/R`. Identify them by name rather than by line number when switching stages: the flags appear 16 times in the prefab YAML in a non-obvious order, and the block shifted by 3 lines when `Inference`/`fallenStartProbability`/`actionRatePenalty` were serialized onto it.
 - **Initial state distribution** (`OnEpisodeBegin`): body parts reset to the authored pose and hips given a uniformly random yaw. With probability `fallenStartProbability` the ragdoll is tipped over (pitch 70–110°, random roll). That value is **0 in stage 1** — a fallen start combined with fall-is-fatal would end the episode at step 0 — and ~0.3 in stage 2. Target walking speed is resampled uniformly in 0.1–5 m/s when `randomizeWalkSpeedEachEpisode` is on.
 - **Discounting:** `gamma: 0.995` and `time_horizon: 1000` in `config.yaml`, with GAE `lambd: 0.95`. The high gamma matters for a task where the payoff for standing up arrives many steps after the effort to do it.
 
@@ -125,7 +128,7 @@ Training is driven by [`mlagents-learn`](Assets/Python/config.yaml) using PPO:
 
 - 512 hidden units, 3 layers, normalized observations
 - 15M max steps, batch size 2048, buffer size 20480
-- Checkpoints and TensorBoard event logs are written under `Assets/Python/results/`
+- Checkpoints and TensorBoard event logs are written under `results/` at the repo root (deliberately outside `Assets/`, see below)
 
 Three scenes, all sharing the same `WalkerRagdoll` prefab and therefore the same policy:
 
@@ -150,7 +153,7 @@ Three scenes, all sharing the same `WalkerRagdoll` prefab and therefore the same
    pip install torch==1.11.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
    ```
    Verify it's actually using the GPU: `python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"` should print `True` and your GPU's name. Don't expect it pegged, though — the network here is small enough that Unity's physics simulation is the real bottleneck, not the gradient step.
-4. Start training. On Windows, use `train.bat` — it always runs from the repo root regardless of your terminal's current directory, so `--results-dir` stays pinned to `Assets/Python/results` instead of landing wherever the shell happened to be (this bit us more than once):
+4. Start training. On Windows, use `train.bat` — it always runs from the repo root regardless of your terminal's current directory, so `--results-dir` stays pinned to `results/` instead of landing wherever the shell happened to be (this bit us more than once):
    ```cmd
    train.bat --run-id=<run-name> --torch-device=cuda
    ```
@@ -160,17 +163,17 @@ Three scenes, all sharing the same `WalkerRagdoll` prefab and therefore the same
    ```
    On Mac/Linux (or if you'd rather not use the batch file), the equivalent is:
    ```bash
-   mlagents-learn Assets/Python/config.yaml --results-dir=Assets/Python/results --run-id=<run-name> --torch-device=cuda
+   mlagents-learn Assets/Python/config.yaml --results-dir=results --run-id=<run-name> --torch-device=cuda
    ```
    Drop `--torch-device=cuda` if you're on CPU-only torch.
 5. Press Play in the Unity Editor when prompted to connect the environment. Use `Walker40` (or `Walker20`), not `Solo Walker`.
 6. Monitor progress with TensorBoard (in a separate terminal, since `mlagents-learn` blocks the one it's running in):
    ```bash
-   tensorboard --logdir Assets/Python/results
+   tensorboard --logdir results
    ```
    Then open the printed URL (typically `http://localhost:6006`).
 
-A completed run (`Walker_GetUp`, 15M steps, fall-recovery reward) and its trained `.onnx` model are checked into `Assets/Python/results/` for reference/inference. `Assets/Examples/Walker/TFModels/Walker.onnx` is Unity's original stock pretrained model, still wired into the ragdoll's Behavior Parameters by default.
+A completed run (`Walker_GetUp`, 15M steps, fall-recovery reward) and its trained `.onnx` model are checked into `results/` for reference/inference. `Assets/Examples/Walker/TFModels/Walker.onnx` is Unity's original stock pretrained model, still wired into the ragdoll's Behavior Parameters by default.
 
 ### Running a trained model
 
@@ -186,7 +189,7 @@ The unmodified Unity example. Any torso, head, or hand contact with the ground *
 
 **`Walker_First_Steps` — ~120k steps.** Walks. Never falls, because falling isn't a state it can occupy. No concept of recovery.
 
-> Removed from the repo in `925199d`. Recoverable via `git checkout 925199d^ -- Assets/Python/results/Walker_First_Steps` if a pre-trained walker is ever wanted as a curriculum starting point.
+> Removed from the repo in `925199d`. Recoverable via `git checkout 925199d^ -- results/Walker_First_Steps` if a pre-trained walker is ever wanted as a curriculum starting point.
 
 ### 2. Fall recovery, first attempt
 
@@ -243,12 +246,12 @@ At the ~850k mark, reward sat at ≈50 over 5,000-step episodes (~0.01/step) wit
 
 The gate was doing its job: crawling was being denied reward, down from the worm's 0.29/step. But that exposed the *next* problem: **standing up from prone is too hard to discover by random exploration.** With the locomotion term gated to ~0 and only the small posture term live, there was almost no reachable gradient to climb. Denying reward for the wrong behavior doesn't teach the right one if the right one is never stumbled into.
 
-### 7. Two-stage curriculum (current)
+### 7. Two-stage curriculum
 
 Rather than expect one policy to learn balance, gait, *and* recovery simultaneously from a mostly-flat reward, split it:
 
 **Stage 1 — learn to walk, falling is fatal.**
-- `agentDoneOnGroundContact: 1` restored on the 12 torso/head/hand parts (feet and the other 4 ground-legal parts stay `0`).
+- `agentDoneOnGroundContact: 1` restored on the 12 non-ground parts (torso, head, arms, thighs) (feet and the other 4 ground-legal parts stay `0`).
 - `fallenStartProbability: 0` — **required**, since a fallen start plus ground-contact termination would end the episode at step 0.
 
 Termination does the heavy lifting: crawling is not a low-scoring policy here, it's an *impossible* one, so the only way to accumulate reward is to stay up and move. This is the original Unity Walker task, which trains reliably.
@@ -258,6 +261,25 @@ Termination does the heavy lifting: crawling is not a low-scoring policy here, i
 - `--initialize-from` stage 1, so the policy starts already knowing balance and gait and only needs to learn recovery.
 
 The reward function is **identical across both stages** — no code change to switch, just the two prefab fields. That's deliberate: while upright, `postureReward ≈ 1` and the gated reward collapses to the original `matchSpeed × lookAt` plus a constant, so the gate is a no-op in stage 1 and the value function stays meaningful across the transfer. Stage 2 still needs the gate, or the crawl comes straight back.
+
+### 8. `Walker_Stage1` — 15,000,390 steps, complete
+
+| Steps | Mean reward |
+|---|---|
+| 5,600,000 | 437.6 |
+| 13,499,718 | 1,046.3 |
+| 13,999,993 | **2,135.8** (peak) |
+| 14,499,322 | 1,557.3 |
+| 15,000,390 | 1,434.9 (final) |
+
+The curriculum worked. Where the posture-gated flat run (`Walker_Smooth`) was stuck at 221 after 1.7M steps with everything crawling, making falls fatal got the same reward function to 1,435 — because crawling stopped being a *reachable* policy rather than merely an unrewarded one.
+
+Two things worth reading correctly:
+
+- **The late-run swing (1046 → 2136 → 1557 → 1291 → 1435) is sampling noise, not decay.** `randomizeWalkSpeedEachEpisode` draws a target speed in 0.1–5 m/s per episode, and matching 0.5 m/s is far easier than matching 5, so per-episode reward varies widely at fixed policy quality. Note `--initialize-from` loads `checkpoint.pt`, i.e. the **final** checkpoint, not the peak.
+- **A mid-run dip after resuming is expected.** Stopping at 5.6M to double the platforms and lower `time_scale` dropped reward from 437 to 101, recovering to 334 over the next 450k steps. Nothing regressed: `--resume` restored the weights (the step counter continued from 5.65M), but every agent restarts its episode simultaneously, so the summary window is briefly dominated by short episodes and the completions stay synchronized for a while. Check `Environment/Episode Length` alongside reward before concluding a restart broke something.
+
+Results also moved from `Assets/Python/results/` to a repo-root `results/` at this point, which ended the TensorBoard `.meta` errors.
 
 ## Notes on reward design and retraining
 
@@ -294,19 +316,6 @@ The trap with `learning_rate_schedule: linear`: it decays the LR to **zero** acr
 Rule of thumb: **`--initialize-from` when adding a skill, start fresh when removing one.** And since experiments here are ~1,180 steps/sec, just run both for ~500k steps and compare curves. If the initialized run starts higher then flatlines while the fresh run overtakes it, that's entropy collapse. `beta` (entropy regularization, currently `0.005`) is the knob — raising it keeps the policy stochastic and is the standard medicine for fine-tuning out of a local optimum.
 
 ## Todo
-
-- **Move training results out of `Assets/`.** They currently live in `Assets/Python/results/`, which puts them inside Unity's asset pipeline — so Unity generates a `.meta` sibling for every file, including each `events.out.tfevents.*`. TensorBoard's directory watcher sorts alphabetically, latches onto `<file>.meta` (Unity YAML, not TF events), and then errors on every update:
-
-  ```
-  File ...events.out.tfevents.1787431335.DCPC.23080.0 updated even though the
-  current file is ...events.out.tfevents.1787431335.DCPC.23080.0.meta
-  ```
-
-  The graphs can go stale as a result. It also means Unity imports 16 MB `.pt` checkpoints as assets for no reason. mlagents-learn's default of writing to `results/` at the repo root was correct; pinning `--results-dir` into `Assets/` was the mistake.
-
-  Fix (do it while **no run is active** — moving files under `Assets/` mid-run triggers an asset refresh that can disturb training): `git mv` each run to a repo-root `results/`, delete the orphaned `.meta` files, and change `train.bat` to `--results-dir=results`. Copy just the final `.onnx` into `Assets/Examples/Walker/TFModels/` when you want it assignable in the Inspector. **Move `Walker_Stage1` before resuming it**, or `--resume` won't find the run and will silently start over.
-
-  Interim workaround: `tblogs/` holds `.meta`-free copies of the event files — regenerate with `find <run>/Walker -maxdepth 1 -name 'events.out.tfevents.*' ! -name '*.meta' -exec cp {} tblogs/<run>/ \;` and point `tensorboard --logdir tblogs` at it. It's a snapshot, not live.
 
 - **Run stage 2 once stage 1 has a competent walker** — see the two-stage curriculum above for the two prefab fields to flip and the `--initialize-from` invocation.
 - **Automate the curriculum.** `m_ResetParams` in `WalkerAgent` is an assigned-but-unused `EnvironmentParameters` hook, which is exactly what ML-Agents' native curriculum system drives. Wiring `fallenStartProbability` (and a termination toggle) through it would make both stages one `mlagents-learn` job with lessons in `config.yaml`, instead of two manual runs with an Inspector edit between them.
