@@ -4,10 +4,22 @@ An experiment in training a simulated ragdoll robot with [Unity ML-Agents](https
 
 ## Demo
 
-<video src="media/MLWalker.mp4" controls width="720">
-  Your browser doesn't support embedded video —
-  <a href="media/MLWalker.mp4">watch/download it here</a>.
-</video>
+![Walker agents chasing a moving target](media/MLWalker.gif)
+
+*40 agents sharing one policy, chasing targets that relocate when reached.
+[Full-quality video](media/MLWalker.mp4) (15s, 1472×776).*
+
+<!-- The GIF is here because GitHub strips <video> tags from README markdown - a <video src="...">
+     renders as nothing on the repo page, though it works in local previews like VS Code. Standard
+     image markdown is the only embed that reliably survives sanitisation.
+     To show the real video inline instead: drag the .mp4 into a GitHub issue or PR comment, which
+     uploads it and returns a github.com/user-attachments/assets/... URL. That URL pasted on its own
+     line in the README renders a player. There is no API for that upload - it is a browser-only
+     flow - so it cannot be scripted.
+     Regenerate the GIF after re-recording:
+       ffmpeg -i media/MLWalker.mp4 -vf "fps=12,scale=640:-1:flags=lanczos,palettegen=stats_mode=diff" -y pal.png
+       ffmpeg -i media/MLWalker.mp4 -i pal.png -lavfi "fps=12,scale=640:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" -y media/MLWalker.gif -->
+
 
 ## Goals
 
