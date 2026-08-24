@@ -14,7 +14,34 @@ An experiment in training a simulated ragdoll robot with [Unity ML-Agents](https
 - **Balance** — keep a multi-jointed ragdoll upright under physics simulation.
 - **Walk / run** — match a commanded target speed as efficiently as possible.
 - **Chase a moving target** — steer toward and reach a target that relocates around the arena.
-- **Recover from falls** — get back up after toppling instead of the episode just resetting.
+- **Stay up under disturbance** — recover a lean or a stumble instead of going down. **Done.**
+- **Recover from falls** — get back up after toppling. In progress; see [EXPERIMENT.md](EXPERIMENT.md).
+
+### The first goal, and how it turned out
+
+The fall-recovery work began as "get up off the floor", and the honest result is that it delivered
+something different and nearer first: **a walker that falls over far less often.**
+
+The clearest demonstration needs no metrics. Put the target *behind* the base model and it topples —
+the turn is a self-inflicted disturbance, and `Walker_Stage1` was trained where touching the ground
+ended the episode, so it never once experienced being past its balance limit and has no policy for
+it. The current model turns and stays up.
+
+That is measurable, and it was measured. `TimeUpright` — the fraction of an episode spent above 0.7
+posture — for both policies started at the same fixed lean and left frozen:
+
+| start lean | 0° | 10° | 20° | 30° |
+|---|---|---|---|---|
+| `Walker_Stage1` (base) | 0.908 | 0.731 | 0.401 | 0.018 |
+| `Getup_E1` (current) | 0.903 | **0.901** | **0.623** | 0.031 |
+
+The recovery frontier moved from about 15° to about 22°, with the upright case unharmed. A 20°
+lean is roughly what a hard turn costs, which is why the behaviour change is obvious by eye at
+exactly the point the table says it should be.
+
+**Getting *up* is a different skill from not going *down*, and only one of them has yielded so far.**
+Both policies are identical past 30° — zero, and unchanged by ~50M steps of training. That boundary,
+where catching yourself stops being possible, is what the remaining work is about.
 
 ## Project layout
 
@@ -516,6 +543,32 @@ But recalibrating the bar would not fix the real result: **450k steps of maximum
 The corollary is where to go next. Every run since `GetupOnly` has been seeded from a **kneeler** — a policy whose entire experience is crawling. `Walker_Stage1` is the opposite: 15M steps in which falling was terminal, so 100% of its experience is upright. It has exactly the half that cannot be found by exploration, and its limitation — never having fallen — is the thing we can actually train. Seed from the policy that already has the terminal skill, and teach it the approach.
 
 One honest note on the rescale in §16: raising the posture coefficient 0.1 → 1.0 also cut the shaping term's *relative* weight from ~11% of posture reward to ~1%, diluting the one term that pays for the transition itself. Left alone for now — the level term at 10× does most of what shaping was compensating for, and this run already has enough moving parts — but it's a knob to revisit before adding new ones.
+
+### 20. Start the experiment over, properly — `EXPERIMENT.md`
+
+Six runs and ~45M steps of moving reward, seed, curriculum, learning rate and termination together
+had produced a reliable kneel and no stand. The log above is a narrative of that; from here the work
+moves to [EXPERIMENT.md](EXPERIMENT.md), which changes one variable per run and states a kill
+criterion before each one starts.
+
+What that immediately bought, in order:
+
+- **A bug that six training runs could not surface.** The first cheap measurement with a
+  pre-registered pass/fail found that `hips.rotation = Quaternion.Euler(pitch, yaw, Random.Range(0f, 360f))`
+  puts a full-circle random *roll* on every start. `fallen_tilt` had never controlled difficulty —
+  "tilt 0" was upright pitch at a random roll, inverted about as often as standing. Every tilt
+  curriculum in this project was measuring nothing. A four-minute run with a stated expectation
+  caught what 45M steps of training could not, because every run was interpretable as a learning
+  failure.
+- **The recovery frontier, measured instead of guessed** — 15° for the base model, and every
+  threshold in `config_getup.yaml` had been set against a guess at it.
+- **The frontier extending, and where it stops.** 15° → 22° after 5.35M steps, with the upright
+  case unharmed. Nothing past 30° in either policy. See the Goals section.
+
+The remaining question is whether the far side of 30° is reachable at all. `PeakPosture` from an
+authored crouch — one leg extension from standing — is the decisive test, and `PostureGain`
+(peak minus the pose the agent was *handed*) is the number that answers it. If that fails,
+demonstrations are the answer rather than a seventh curriculum, which is what the plan pre-commits to.
 
 ## Notes on reward design and retraining
 
