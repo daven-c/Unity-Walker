@@ -67,7 +67,7 @@ environment_parameters:
     - value:
         sampler_type: constant
         sampler_parameters:
-          seed: 4809
+          seed: 7587
           value: 90
       name: fallen_tilt
       completion_criteria: null
@@ -76,7 +76,7 @@ environment_parameters:
     - value:
         sampler_type: constant
         sampler_parameters:
-          seed: 4810
+          seed: 7588
           value: 80
       name: fallen_tilt_min
       completion_criteria: null
