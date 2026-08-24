@@ -164,6 +164,39 @@ is a longer ramp. If it cannot do it once, no amount of ramp design will help.
 - **Success:** `TimeUpright` at the new tilt exceeds its E0 baseline by 0.1 or more.
 - **Kill:** entropy flat within ±0.005 and `PeakPosture` flat within ±0.02 over 1M steps (F8).
 
+### E1/E2 result — `Getup_E1` (5.35M steps), probed as `Probe_E1`
+
+Same sweep as E0, so this is apples-to-apples rather than inferred across conditions.
+
+| fixed tilt | 0 | 10 | 20 | **30** | 45 | 60 | 90 |
+|---|---|---|---|---|---|---|---|
+| Stage1 `TimeUpright` | 0.908 | 0.731 | 0.401 | 0.018 | 0.023 | 0.000 | 0.000 |
+| E1 `TimeUpright` | 0.903 | **0.901** | **0.623** | 0.031 | 0.015 | 0.000 | 0.000 |
+| delta | −0.005 | **+0.170** | **+0.222** | +0.014 | −0.008 | 0.000 | 0.000 |
+
+**E2 passes.** +0.222 at tilt 20 against a +0.1 bar, and tilt 0 is preserved at 0.903 — the frontier
+extended without degrading the base skill. **θ\* moved from ~15° to ~22°.**
+
+This also corrects a wrong call. Comparing E1's training-time `TimeUpright` against an
+interpolated E0 baseline suggested it was running ~0.1 *below* the frozen policy, and that
+comparison was reported as evidence fine-tuning was degrading it. The direct probe says the
+opposite. Estimates across mismatched conditions — different collapse settings, different tilt
+distributions — are not measurements, and the four-minute probe existed precisely to avoid
+trusting one.
+
+**But the cliff did not move.** Tilt 30 went 0.018 → 0.031, essentially nothing, despite 1.5M steps
+of training on `[0,30]`. Beyond 30° both policies are identical at zero, and E1's `PeakPosture` at
+45–60 is slightly *worse* (0.795 → 0.669, 0.557 → 0.475) — normal specialisation toward where it
+trained.
+
+So what extended is **balance recovery**, not get-up. 15° → 22° is a bigger stumble caught, and the
+qualitative boundary — where the feet leave the ground and catching yourself stops being an option —
+sits right at the cliff and has not moved in ~50M steps across every run in this project.
+
+At ~7° of frontier per 5M steps, reaching 90° extrapolates to ~55M steps, and the stall at 30
+argues the extension is not linear anyway. **The measurement that matters is that the two regimes
+behave differently: one yields to training, the other has never once responded.**
+
 ## E3 — Pose-space start states
 
 The change the structural flaw above implies, and the one that has never been tried: start
@@ -184,10 +217,26 @@ curriculum.
 
 ## E4 — Demonstrations (fallback, pre-committed)
 
-The config's own decision rule, written before `GetupOnly` and now overdue: record a get-up with
-the Demonstration Recorder, then BC pretraining plus GAIL. Reaching E4 is not a failure of the
-project; it is the correct outcome if E3 says the behaviour is outside exploration's reach, and
-deciding that in advance is what stops it becoming a seventh round of curriculum tuning.
+Record a get-up with the Demonstration Recorder, then BC pretraining plus GAIL. Reaching E4 is not
+a failure of the project; humanoid get-up in the literature is normally learned from motion
+references (DeepMimic, AMP and descendants), while pure-RL self-righting is mostly a quadruped
+result. E4 is the mainstream method for this exact problem, and pre-committing to it is what stops
+it becoming a seventh round of curriculum tuning.
+
+**The practical obstacle, which is why E3 comes first.** Getting the demonstration is itself hard
+here. The Demonstration Recorder captures a human driving the agent, and there is no way to puppet
+39 continuous joint targets into a get-up by hand. The realistic sources are:
+
+1. **Hand-authored joint trajectories** — script the pose sequence and record it executing. Most
+   direct, and the crouch pose E3 needs is the first half of the same work.
+2. **Retargeted mocap** — CMU has get-up clips; retargeting to this ragdoll's joint layout is a
+   substantial project on its own.
+3. **Self-imitation** — E1 already reaches `PeakPosture` 0.845 at tilt 30 without staying up. Its
+   best episodes are near-successes; filtering them and training on those is cheap in principle,
+   but ML-Agents has no built-in support and it needs a harness.
+
+E3's authored crouch is a prerequisite for (1) and a decisive experiment in its own right, which is
+what makes it the better next move rather than a detour.
 
 ## Rules for running these
 
