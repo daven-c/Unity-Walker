@@ -6,8 +6,6 @@ An experiment in training a simulated ragdoll robot with [Unity ML-Agents](https
 
 ![Walker agents chasing a moving target](media/MLWalker.gif)
 
-*40 agents sharing one policy, chasing targets that relocate when reached.
-[Full-quality video](media/MLWalker.mp4) (15s, 1472×776).*
 
 <!-- The GIF is here because GitHub strips <video> tags from README markdown - a <video src="...">
      renders as nothing on the repo page, though it works in local previews like VS Code. Standard
