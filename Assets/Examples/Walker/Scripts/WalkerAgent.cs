@@ -91,6 +91,34 @@ public class WalkerAgent : Agent
              "at all. Overridden by the 'fallen_tilt_min' environment parameter.")]
     public float fallenStartMinTilt;
 
+    [Header("Crouch Start (E3)")]
+    [Range(0f, 1f)]
+    [Tooltip("Fraction of episodes that start in an authored CROUCH instead of a tilted standing " +
+             "pose. Overridden by the 'crouch_start' environment parameter.\n\n" +
+             "Why this exists: fallen_tilt only ROTATES the standing pose. Every start state this " +
+             "project has used is the standing pose rigidly rotated, so the tilt curriculum " +
+             "interpolates between standing and lying down and never produces the intermediate " +
+             "poses of a get-up - kneeling, hands-and-knees, squatting. Those states have only ever " +
+             "been visited transiently, mid-episode, by a policy that then leaves them.\n\n" +
+             "E0/E2 measured the consequence: training extends the recovery frontier smoothly from " +
+             "15 to 22 degrees, and then stops dead at the cliff near 30 where catching yourself " +
+             "stops being possible. A crouch is one leg extension from standing - the true " +
+             "penultimate state of the get-up trajectory - so it tests the far side of that cliff " +
+             "directly instead of trying to reach it by rotation.")]
+    public float crouchStartProbability;
+
+    [Tooltip("Crouch joint angles, in degrees about each part's local X. Defaults are a plausible " +
+             "squat and are NOT verified against this rig - the sign and magnitude that read as a " +
+             "squat depend on the ragdoll's bone axes. Tune them visually: set crouchStartProbability " +
+             "to 1, enter Play mode, and watch the spawn pose before spending a training run on it.")]
+    public float crouchHipFlex = -60f;
+
+    [Tooltip("Knee flex. See crouchHipFlex.")]
+    public float crouchKneeFlex = 70f;
+
+    [Tooltip("Ankle flex, to keep the soles flat on the ground. See crouchHipFlex.")]
+    public float crouchAnkleFlex = -25f;
+
     [Tooltip("Weight on shaping over posture: k * (posture_t - posture_t-1), the pure difference. " +
              "The plain posture term is a LEVEL reward - it says where you are, not whether you're " +
              "improving - so the first half of a get-up earns nothing and there's no gradient to " +
@@ -144,6 +172,13 @@ public class WalkerAgent : Agent
     //Posture counted as "standing" for TimeUpright. Deliberately not tied to collapse_posture:
     //that one ratchets, and a yardstick that moves can't be compared across a run.
     const float k_UprightPosture = 0.7f;
+
+    //Authored local rotations of the leg parts, and the ground height the feet rest at, both
+    //captured in Initialize before any physics runs. The crouch is expressed as an offset from
+    //these rather than as absolute angles, so it survives any change to the rig's rest pose.
+    Quaternion[] m_LegStartLocalRot;
+    Transform[] m_LegParts;
+    float m_StartFootY;
 
     [Header("Motion Smoothness")]
     [Range(0f, 0.5f)]
@@ -199,6 +234,18 @@ public class WalkerAgent : Agent
             m_StandingHeight = standingHeight;
         }
 
+        //Same moment, same reason: the authored rest pose is the only frame where these are known
+        //to be clean. m_StartFootY is the height the soles sit at when standing, which is what the
+        //crouch is re-seated against so it neither floats nor spawns inside the platform.
+        m_LegParts = new[] { thighL, thighR, shinL, shinR, footL, footR };
+        m_LegStartLocalRot = new Quaternion[m_LegParts.Length];
+        for (var i = 0; i < m_LegParts.Length; i++)
+        {
+            m_LegStartLocalRot[i] = m_LegParts[i].localRotation;
+        }
+
+        m_StartFootY = Mathf.Min(footL.position.y, footR.position.y);
+
         m_ResetParams = Academy.Instance.EnvironmentParameters;
     }
 
@@ -239,7 +286,14 @@ public class WalkerAgent : Agent
 
         //Random start rotation to help generalize
         var yaw = Random.Range(0.0f, 360.0f);
-        if (Random.value < fallenStartProbability)
+
+        //Crouch and tilt are mutually exclusive: a crouch is a POSE, a tilt is a rotation of the
+        //rest pose, and combining them would produce neither.
+        if (Random.value < Mathf.Clamp01(m_ResetParams.GetWithDefault("crouch_start", crouchStartProbability)))
+        {
+            ApplyCrouchPose(yaw);
+        }
+        else if (Random.value < fallenStartProbability)
         {
             //Tip the ragdoll over so it has to practice recovering, rather than only ever starting
             //from a stable standing pose. The tilt is curriculum-driven: recovering from fully prone
@@ -559,6 +613,47 @@ public class WalkerAgent : Agent
                 //failure" is the actual task.
                 EndEpisode();
             }
+        }
+    }
+
+    /// <summary>
+    /// Seats the ragdoll in an authored squat: hips and knees flexed, soles flat on the ground.
+    /// One leg extension from standing, which makes it the penultimate state of a get-up.
+    /// </summary>
+    void ApplyCrouchPose(float yaw)
+    {
+        hips.rotation = Quaternion.Euler(0f, yaw, 0f);
+
+        //Local rotations, not world. The body parts are nested in the transform hierarchy - which
+        //is why setting hips.rotation alone tips the whole ragdoll and gives posture exactly
+        //cos(pitch) - so flexing a thigh carries its shin and foot with it. Forward kinematics for
+        //free; setting world rotations part by part would fight the hierarchy instead of using it.
+        var flex = new[]
+        {
+            crouchHipFlex, crouchHipFlex, crouchKneeFlex, crouchKneeFlex, crouchAnkleFlex, crouchAnkleFlex
+        };
+        for (var i = 0; i < m_LegParts.Length; i++)
+        {
+            m_LegParts[i].localRotation = m_LegStartLocalRot[i] * Quaternion.Euler(flex[i], 0f, 0f);
+        }
+
+        //Transform writes on a Rigidbody don't reach the physics scene until it syncs, and the
+        //foot positions are read back on the next line, so force it here.
+        Physics.SyncTransforms();
+
+        //Re-seat on the ground. Flexing the knees lifts the soles well above where they rest when
+        //standing, and dropping the ragdoll from there would make the first half-second a fall
+        //rather than a crouch - which is exactly the confound this pose exists to avoid.
+        hips.position += Vector3.up * (m_StartFootY - Mathf.Min(footL.position.y, footR.position.y));
+        Physics.SyncTransforms();
+
+        //Reset() already zeroed these, but it ran before the parts were moved. Clearing again
+        //costs nothing and guarantees the episode starts at rest rather than with whatever the
+        //physics engine inferred from the displacement.
+        foreach (var bodyPart in m_JdController.bodyPartsDict.Values)
+        {
+            bodyPart.rb.linearVelocity = Vector3.zero;
+            bodyPart.rb.angularVelocity = Vector3.zero;
         }
     }
 
