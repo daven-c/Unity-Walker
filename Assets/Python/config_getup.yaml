@@ -24,14 +24,15 @@ behaviors:
                 gamma: 0.995
                 strength: 1.0
         keep_checkpoints: 5
-        max_steps: 20000000 # ~4 h on this machine at the measured ~1,450 steps/sec.
-                            #
-                            # This is a schedule, not just a budget: it drives the linear LR decay AND
-                            # the `progress` measure the curriculum below is gated on. A run that
-                            # reaches it is finished in both senses - `--resume` exits immediately and
-                            # the LR has decayed to zero - so continuing past it means a NEW run-id
-                            # seeded with `--initialize-from`, which restarts step 0 and hence both
-                            # schedules. Walker_GetupOnly hit this at 20,000,548.
+        # 12M, ~2.3 h at the measured ~1,450 steps/sec. Set to the length actually intended, not
+        # a generous ceiling: `progress` is step/max_steps, so max_steps IS the curriculum's clock.
+        # A 20M ceiling on a run stopped at 1M is why the collapse ratchet never fired for four
+        # runs. At 12M the first lesson ends at exactly 2.0M, which is E1's evaluation point.
+        #
+        # A run that reaches this is finished in both senses - `--resume` exits immediately and the
+        # linear LR has decayed to zero - so continuing means a new run-id seeded with
+        # --initialize-from, which restarts step 0 and hence both schedules.
+        max_steps: 12000000
         time_horizon: 1000
         summary_freq: 50000
 # GET-UP ONLY. A decisive test of whether recovery is learnable from this reward at all.
@@ -47,57 +48,60 @@ behaviors:
 # kneel (mean reward 954, episode length ~838 against a no-recovery floor of 120). No demonstrations
 # needed. The remaining problem is not "can't get up", it is "stops halfway" - see collapse_posture.
 environment_parameters:
-    # Reverse curriculum on start tilt, with the EASY end always present.
+    # Reverse curriculum on start tilt, EASY END PINNED AT 0, lesson boundaries SET FROM E0.
     #
-    # This was uniform [0,90] for the Getup4/5 runs, on the argument that mixing beats ramping: a
-    # kneeler seed needs standing states in the buffer for the critic to learn they are worth
-    # anything, and a lesson containing only easy starts has no kneel states to apply that to.
-    # That argument was correct FOR A KNEELER SEED, and it inverts for a standing seed.
+    # E0 (Probe_Stage1b, EXPERIMENT.md) swept a frozen Stage1 across fixed tilts and measured the
+    # recovery frontier for the first time instead of guessing it:
     #
-    # Getup6 seeded from Walker_Stage1 - 15M steps where falling was terminal, so a policy that can
-    # only stand - and uniform [0,90] destroyed it in under 100k steps:
+    #     tilt      0     10     20     30     45     60     90
+    #     upright  .82    .73    .40    .03    .02    .00    .00
+    #     peak    1.00    .99    .98    .91    .80    .56    .31
     #
-    #     step     posture   peak   upright
-    #      50k       0.088  0.291     0.094
-    #     100k       0.041  0.212     0.011   <- standing skill gone
+    # TimeUpright holds above 0.5 to about 15 degrees and falls off a cliff between 20 and 30.
+    # That is the whole competence of a policy trained for 15M steps with falling terminal: it can
+    # recover a 15-degree lean and nothing more, because it was never once allowed to be past that.
     #
-    # Two thirds of episodes started at a tilt Stage1 has never seen, it had no recovery policy for
-    # any of them, and the collapse cut ended nearly every episode at the 120-decision floor. The
-    # buffer was almost pure failure, and at learning_rate 3e-4 that overwrote the one skill the
-    # seed existed to provide. A firehose of out-of-distribution starts is not a curriculum.
+    # Every tilt curriculum before this one stepped straight over the cliff. The last version went
+    # [0,15] -> [0,35] in one lesson, crossing the entire 20-30 collapse in a single move. The
+    # lessons below put four steps inside the region where the frontier actually is.
     #
-    # So: ramp the HARD end while pinning the easy end at 0. fallen_tilt_min stays 0 for the whole
-    # run, so near-upright starts never leave the data and standing is continuously rehearsed even
-    # at the last lesson. That is the piece the previous reverse curriculum got wrong - it ramped
-    # min up to 60 and stopped practising the skill it had just taught.
+    # peak > cos(pitch) at every tilt, so it does partially right itself before going down - the
+    # rising motion exists, it just does not finish. That is the thing being extended.
     fallen_tilt:
         curriculum:
-            - name: Lean # [0,15] - inside what Stage1 already handles. Should barely fall at all.
-              completion_criteria:
+            - name: Lean # inside the measured frontier: upright .82 -> .73. Should barely fall.
+              completion_criteria: &prog
                   measure: progress
                   behavior: Walker
                   signal_smoothing: true
                   min_lesson_length: 200
-                  threshold: 0.05
+                  threshold: 0.167
               value: 15
-            - name: Stumble # [0,35] - starts to lose it, still recoverable by leg action alone
+            - name: Tip # frontier edge, upright .40 at fixed 20. First lesson that asks for new skill.
               completion_criteria:
-                  measure: progress
-                  behavior: Walker
-                  signal_smoothing: true
-                  min_lesson_length: 200
-                  threshold: 0.15
-              value: 35
-            - name: Toppled # [0,60] - past the point posture drops under the collapse bar
-              completion_criteria:
-                  measure: progress
-                  behavior: Walker
-                  signal_smoothing: true
-                  min_lesson_length: 200
+                  <<: *prog
                   threshold: 0.30
-              value: 60
-            - name: Prone # [0,90] - the full get-up, with a third of episodes still easy
+              value: 22
+            - name: Stumble # into the cliff - upright .03 at fixed 30
+              completion_criteria:
+                  <<: *prog
+                  threshold: 0.45
+              value: 30
+            - name: Topple # past it
+              completion_criteria:
+                  <<: *prog
+                  threshold: 0.62
+              value: 45
+            - name: Fall
+              completion_criteria:
+                  <<: *prog
+                  threshold: 0.80
+              value: 65
+            - name: Prone # the full get-up, with the easy end still in every batch
               value: 90
+    # Pinned at 0 for the whole run, so near-upright starts never leave the data and the standing
+    # skill is rehearsed continuously. The first reverse curriculum ramped this up to 60 and
+    # stopped practising the very thing it had just taught.
     fallen_tilt_min: 0
     # Switch the target off. Posture is the entire reward here; there is nothing to earn by moving.
     #

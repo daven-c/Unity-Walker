@@ -16,8 +16,8 @@ behaviors:
     Walker:
         trainer_type: ppo
         hyperparameters:
-            batch_size: 2048
-            buffer_size: 20480
+            batch_size: 1024
+            buffer_size: 4096
             # 1e-8 with a constant schedule: the policy does not meaningfully move over 350k steps,
             # so each lesson measures the SEEDED policy rather than one already adapting to the
             # tilt being measured. Not zero, because mlagents still wants a valid optimiser.
@@ -39,17 +39,17 @@ behaviors:
         keep_checkpoints: 1
         # 7 lessons x 50k. max_steps IS the intended length, so `progress` means what it says.
         max_steps: 350000
-        # 200, not the 1000 used for training. The trainer's step counter only advances when
-        # trajectories are handed to it, which happens at time_horizon or episode end - so steps
-        # arrive in chunks of num_agents x time_horizon. At 40 agents x 1000 that is 40,000 steps
-        # at a time, which is why the first probe produced 9 summaries instead of 35 and roughly
-        # one usable sample per lesson. 40 x 200 = 8,000 gives ~6 per lesson.
+        # Summary spacing is driven by BUFFER_SIZE, not by time_horizon. Summaries are written
+        # during policy updates, and an update fires when the update buffer fills - so at
+        # buffer_size 20480 they land ~40k apart no matter what summary_freq says. Dropping
+        # time_horizon 1000 -> 200 was tried first and changed nothing, which is what identified
+        # the real driver.
         #
-        # Safe to change ONLY because this config does not learn: time_horizon sets the value
-        # bootstrapping horizon, which matters a great deal at a real learning rate and not at all
-        # at 1e-8. Do not copy this number into config_getup.yaml.
+        # Both are safe to shrink ONLY because this config does not learn. buffer_size and
+        # time_horizon set how much experience an update sees and how far value bootstrapping
+        # reaches; at 1e-8 neither affects the measurement. Do not copy either into config_getup.
         time_horizon: 200
-        summary_freq: 8000
+        summary_freq: 4000
 environment_parameters:
     posture_focus: 1.0
     # Collapse cut DISABLED. Any bar above 0 truncates the failing tilts at 600 physics steps,

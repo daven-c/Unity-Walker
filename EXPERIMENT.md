@@ -39,7 +39,7 @@ direction random — so `dot(hips.up, worldUp)` is now exactly `cos(pitch)` (ver
 0 error) and start posture is `cos(pitch) × height ratio`. The model used for calibration is now
 true rather than assumed.
 
-**E0 must be re-run.** Its results below measured the broken start distribution.
+**E0 was re-run after the fix** (`Probe_Stage1b`). Results below.
 
 ## The structural flaw in every run so far
 
@@ -106,6 +106,37 @@ costs four minutes to exclude.
 
 **Kill:** `TimeUpright` < 0.8 at tilt 0 → stop. The problem is transfer, not learning; debug that
 first.
+
+### E0 result — `Probe_Stage1b`
+
+| fixed tilt | 0 | 10 | 20 | 30 | 45 | 60 | 90 |
+|---|---|---|---|---|---|---|---|
+| `TimeUpright` | **0.816** | 0.731 | 0.401 | 0.033 | 0.023 | 0.000 | 0.000 |
+| `PeakPosture` | 1.000 | 0.998 | 0.978 | 0.907 | 0.795 | 0.557 | 0.308 |
+| mean posture | 0.549 | 0.558 | 0.305 | 0.051 | 0.005 | 0.007 | 0.008 |
+
+**Instrument check passes.** 0.816 at tilt 0, so `--initialize-from` does transfer the policy. Every
+conclusion drawn from `Getup6` about learning dynamics was really about the broken start pose (F11),
+not about transfer — that alternative is now excluded.
+
+**θ\* ≈ 15°.** `TimeUpright` holds above 0.5 to roughly 15 degrees and falls off a cliff between 20
+and 30 (0.401 → 0.033). That is the entire competence of a policy trained for 15M steps with falling
+terminal: it recovers a 15-degree lean and nothing more, because it was never once permitted to be
+past that. Not a defect — a precise description of what the training signal asked for.
+
+**Every tilt curriculum in this project stepped straight over that cliff.** The most recent went
+`[0,15] → [0,35]` in one lesson, crossing the whole 20–30 collapse in a single move. The revised
+ramp in `config_getup.yaml` puts four lessons inside the region where the frontier actually is:
+15 → 22 → 30 → 45 → 65 → 90.
+
+**`PeakPosture` > cos(pitch) at every tilt** (0.907 at 30° against cos30 = 0.866; 0.308 at 90°
+against cos90 = 0). So the ragdoll does partially right itself before going down at every angle
+tested. The rising motion exists — it just doesn't finish. That is the thing E1/E2 are trying to
+extend, and it is a more hopeful starting point than "it never tries".
+
+One caveat on reading this table: at tilts where the policy fails, `PeakPosture` largely reflects
+the *start* pose rather than an achievement, since the episode's best moment is its first. Peak and
+`TimeUpright` have to be read together — peak alone would make tilt 30 look like near-success.
 
 ## E1 — Can the seed survive fine-tuning at all?
 
