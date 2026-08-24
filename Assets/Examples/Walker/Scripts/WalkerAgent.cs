@@ -169,6 +169,13 @@ public class WalkerAgent : Agent
     int m_UprightSteps;
     int m_EpisodePhysicsSteps;
 
+    //Posture on the episode's FIRST physics step - i.e. the start pose, before the policy has done
+    //anything. Without it PeakPosture is unreadable: an episode's best moment is often its first,
+    //so a peak of 0.95 means "stood up" or "was placed standing and fell" and nothing distinguishes
+    //them. That ambiguity was flagged for tilt 30 and then hit again on the first crouch run.
+    //PeakPosture - StartPosture is the honest quantity: what the policy ADDED to what it was handed.
+    float m_StartPosture;
+
     //Posture counted as "standing" for TimeUpright. Deliberately not tied to collapse_posture:
     //that one ratchets, and a yardstick that moves can't be compared across a run.
     const float k_UprightPosture = 0.7f;
@@ -278,9 +285,16 @@ public class WalkerAgent : Agent
             stats.Add("Walker/PeakPosture", m_PeakPosture, StatAggregationMethod.Average);
             stats.Add("Walker/TimeUpright", (float)m_UprightSteps / m_EpisodePhysicsSteps,
                 StatAggregationMethod.Average);
+            stats.Add("Walker/StartPosture", m_StartPosture, StatAggregationMethod.Average);
+
+            //The headline number for any get-up experiment: how far the policy raised itself above
+            //the pose it was given. Zero means it never improved on its start, whatever the peak.
+            stats.Add("Walker/PostureGain", m_PeakPosture - m_StartPosture,
+                StatAggregationMethod.Average);
         }
 
         m_PeakPosture = 0f;
+        m_StartPosture = 0f;
         m_UprightSteps = 0;
         m_EpisodePhysicsSteps = 0;
 
@@ -574,6 +588,11 @@ public class WalkerAgent : Agent
         //ever reaches a genuine stand.
         Academy.Instance.StatsRecorder.Add("Walker/Posture", postureReward,
             StatAggregationMethod.Histogram);
+
+        if (m_EpisodePhysicsSteps == 0)
+        {
+            m_StartPosture = postureReward;
+        }
 
         m_EpisodePhysicsSteps++;
         m_PeakPosture = Mathf.Max(m_PeakPosture, postureReward);
