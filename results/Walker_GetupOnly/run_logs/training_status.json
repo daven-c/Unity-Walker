@@ -1,0 +1,71 @@
+{
+    "fallen_tilt": {
+        "lesson_num": 0
+    },
+    "fallen_tilt_min": {
+        "lesson_num": 0
+    },
+    "Walker": {
+        "checkpoints": [
+            {
+                "steps": 18499337,
+                "file_path": "results\\Walker_GetupOnly\\Walker\\Walker-18499337.onnx",
+                "reward": 797.3650470256805,
+                "creation_time": 1787516248.836225,
+                "auxillary_file_paths": [
+                    "results\\Walker_GetupOnly\\Walker\\Walker-18499337.pt"
+                ]
+            },
+            {
+                "steps": 18999177,
+                "file_path": "results\\Walker_GetupOnly\\Walker\\Walker-18999177.onnx",
+                "reward": 716.806953938802,
+                "creation_time": 1787516627.3313854,
+                "auxillary_file_paths": [
+                    "results\\Walker_GetupOnly\\Walker\\Walker-18999177.pt"
+                ]
+            },
+            {
+                "steps": 19499787,
+                "file_path": "results\\Walker_GetupOnly\\Walker\\Walker-19499787.onnx",
+                "reward": 845.7649739583334,
+                "creation_time": 1787517010.5297546,
+                "auxillary_file_paths": [
+                    "results\\Walker_GetupOnly\\Walker\\Walker-19499787.pt"
+                ]
+            },
+            {
+                "steps": 19999548,
+                "file_path": "results\\Walker_GetupOnly\\Walker\\Walker-19999548.onnx",
+                "reward": 918.0320172991071,
+                "creation_time": 1787517385.6199267,
+                "auxillary_file_paths": [
+                    "results\\Walker_GetupOnly\\Walker\\Walker-19999548.pt"
+                ]
+            },
+            {
+                "steps": 20000548,
+                "file_path": "results\\Walker_GetupOnly\\Walker\\Walker-20000548.onnx",
+                "reward": 954.1480407714844,
+                "creation_time": 1787517385.8063986,
+                "auxillary_file_paths": [
+                    "results\\Walker_GetupOnly\\Walker\\Walker-20000548.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 20000548,
+            "file_path": "results\\Walker_GetupOnly\\Walker.onnx",
+            "reward": 954.1480407714844,
+            "creation_time": 1787517385.8063986,
+            "auxillary_file_paths": [
+                "results\\Walker_GetupOnly\\Walker\\Walker-20000548.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "0.30.0",
+        "torch_version": "1.11.0+cu113"
+    }
+}

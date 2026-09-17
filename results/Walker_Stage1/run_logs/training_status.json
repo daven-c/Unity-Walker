@@ -1,0 +1,65 @@
+{
+    "Walker": {
+        "checkpoints": [
+            {
+                "steps": 13499718,
+                "file_path": "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-13499718.onnx",
+                "reward": 1046.2790114662864,
+                "creation_time": 1787436838.8701677,
+                "auxillary_file_paths": [
+                    "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-13499718.pt"
+                ]
+            },
+            {
+                "steps": 13999993,
+                "file_path": "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-13999993.onnx",
+                "reward": 2135.766961669922,
+                "creation_time": 1787437176.2206624,
+                "auxillary_file_paths": [
+                    "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-13999993.pt"
+                ]
+            },
+            {
+                "steps": 14499322,
+                "file_path": "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-14499322.onnx",
+                "reward": 1557.2911802019391,
+                "creation_time": 1787437516.4400506,
+                "auxillary_file_paths": [
+                    "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-14499322.pt"
+                ]
+            },
+            {
+                "steps": 14999390,
+                "file_path": "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-14999390.onnx",
+                "reward": 1291.3440667065706,
+                "creation_time": 1787437858.6251347,
+                "auxillary_file_paths": [
+                    "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-14999390.pt"
+                ]
+            },
+            {
+                "steps": 15000390,
+                "file_path": "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-15000390.onnx",
+                "reward": 1434.885706981023,
+                "creation_time": 1787437858.771476,
+                "auxillary_file_paths": [
+                    "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-15000390.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 15000390,
+            "file_path": "Assets\\Python\\results\\Walker_Stage1\\Walker.onnx",
+            "reward": 1434.885706981023,
+            "creation_time": 1787437858.771476,
+            "auxillary_file_paths": [
+                "Assets\\Python\\results\\Walker_Stage1\\Walker\\Walker-15000390.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "0.30.0",
+        "torch_version": "1.11.0+cu113"
+    }
+}

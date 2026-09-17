@@ -1,0 +1,65 @@
+# E3 - CROUCH STARTS. The decisive test. See EXPERIMENT.md.
+#
+# Every episode starts in an authored squat: hips and knees flexed, soles flat, torso upright.
+# One leg extension from standing. The reward is pure posture, so it pays monotonically for that
+# extension and for nothing else.
+#
+#   mlagents-learn Assets\Python\config_e3.yaml --results-dir=results --run-id=E3_Crouch \
+#       --initialize-from=Getup_E1 --torch-device=cuda
+#
+# Why this and not another tilt ramp. fallen_tilt only ROTATES the rest pose, so no tilt value ever
+# starts the ragdoll folded. E0/E2 measured what that costs: training extends the recovery frontier
+# smoothly from 15 to 22 degrees and then stops dead at the cliff near 30, where catching yourself
+# stops being possible and standing up would have to begin. ~50M steps across every run in this
+# project have never moved the far side of that cliff. A crouch start puts the agent on the far
+# side directly.
+#
+# DECISIVE either way. If PeakPosture from a crouch does not exceed 0.8, then standing up is not
+# reachable by exploration here even from one joint away, with a reward that pays for every degree
+# of the motion - and E4 (demonstrations) is the answer rather than a seventh curriculum. If it
+# does clear 0.8, the crouch becomes the near end of a reverse curriculum through kneeling to prone.
+behaviors:
+    Walker:
+        trainer_type: ppo
+        hyperparameters:
+            batch_size: 2048
+            buffer_size: 20480
+            # Fine-tune of an existing policy, so 1e-4 rather than the 3e-4 used from scratch.
+            learning_rate: 0.0001
+            beta: 0.005
+            epsilon: 0.2
+            lambd: 0.95
+            num_epoch: 3
+            learning_rate_schedule: linear
+        network_settings:
+            normalize: true
+            hidden_units: 512
+            num_layers: 3
+        reward_signals:
+            extrinsic:
+                gamma: 0.995
+                strength: 1.0
+        keep_checkpoints: 5
+        # ~45 min. Set to the length actually intended - nothing here is gated on progress, but the
+        # linear LR schedule is, and a 20M ceiling on a 4M run means the LR never finishes decaying.
+        max_steps: 4000000
+        time_horizon: 1000
+        summary_freq: 25000
+environment_parameters:
+    posture_focus: 1.0
+    crouch_start: 1.0
+    # Collapse cut DISABLED, deliberately, and this is the one place it should be.
+    #
+    # A crouch scores roughly 0.7 posture - torso vertical, folded down onto bent knees - which
+    # sits right where the ratcheted bar has been. Any bar near that turns this into the kneel
+    # problem again: the agent settles at the cheapest pose that clears it, and the run measures
+    # bar-clearing rather than standing. With the cut off, nothing terminates, every episode runs
+    # its full length, and PeakPosture answers the question directly without a survival game
+    # layered on top.
+    collapse_posture: 0.0
+engine_settings:
+    time_scale: 8
+    quality_level: 0
+    width: 84
+    height: 84
+    no_graphics: false

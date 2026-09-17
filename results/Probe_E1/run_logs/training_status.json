@@ -1,0 +1,41 @@
+{
+    "posture_focus": {
+        "lesson_num": 0
+    },
+    "collapse_posture": {
+        "lesson_num": 0
+    },
+    "fallen_tilt": {
+        "lesson_num": 6
+    },
+    "fallen_tilt_min": {
+        "lesson_num": 6
+    },
+    "Walker": {
+        "checkpoints": [
+            {
+                "steps": 351900,
+                "file_path": "results\\Probe_E1\\Walker\\Walker-351900.onnx",
+                "reward": null,
+                "creation_time": 1787535044.2401216,
+                "auxillary_file_paths": [
+                    "results\\Probe_E1\\Walker\\Walker-351900.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 351900,
+            "file_path": "results\\Probe_E1\\Walker.onnx",
+            "reward": null,
+            "creation_time": 1787535044.2401216,
+            "auxillary_file_paths": [
+                "results\\Probe_E1\\Walker\\Walker-351900.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "0.30.0",
+        "torch_version": "1.11.0+cu113"
+    }
+}
