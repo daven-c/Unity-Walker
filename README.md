@@ -1,12 +1,13 @@
+
 # Unity Walker
 
 An experiment in training a simulated ragdoll robot with [Unity ML-Agents](https://github.com/Unity-Technologies/ml-agents) to stand up, walk, run, and chase down a moving target — using reinforcement learning (PPO) instead of hand-authored animation or control logic.
 
 ## Demo
 
-<video src="https://github.com/daven-c/Unity-Walker/blob/main/media/MLWalker.mp4" controls width="720">
+<video src="https://github.com/user-attachments/assets/4d56fd66-a8f5-4b1b-ba7d-e07c7bc57166" controls width="720">
   Your browser doesn't support embedded video —
-  <a href="https://github.com/daven-c/Unity-Walker/blob/main/media/MLWalker.mp4">watch/download it here</a>.
+  <a href="https://github.com/user-attachments/assets/4d56fd66-a8f5-4b1b-ba7d-e07c7bc57166">watch/download it here</a>.
 </video>
 
 ## Goals
