@@ -4,10 +4,7 @@ An experiment in training a simulated ragdoll robot with [Unity ML-Agents](https
 
 ## Demo
 
-<video src="https://github.com/daven-c/Unity-Walker/blob/main/media/MLWalker.mp4" controls width="720">
-  Your browser doesn't support embedded video —
-  <a href="https://github.com/daven-c/Unity-Walker/blob/main/media/MLWalker.mp4">watch/download it here</a>.
-</video>
+[▶ Watch/download the demo video (MLWalker.mp4)](./media/MLWalker.mp4)
 
 ## Goals
 
